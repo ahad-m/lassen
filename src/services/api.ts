@@ -1,8 +1,8 @@
 // =============================================================
 // src/services/api.ts
 // =============================================================
-const BASE = "http://localhost:8000";// اذا بتشغلينه لوكال خليه localhost:8000
-//const BASE = "https://lassen-final-project-1.onrender.com";
+//const BASE = "http://localhost:8000";// اذا بتشغلينه لوكال خليه localhost:8000
+const BASE = "https://lassen-final-project-1.onrender.com";
 
 export class APIError extends Error {
   constructor(public status: number, message: string) { super(message); }
