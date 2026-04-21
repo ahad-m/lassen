@@ -89,3 +89,4 @@ def get_db_stats() -> dict:
         return {cat: len(poems) for cat, poems in db.items()}
     except FileNotFoundError:
         return {"error": "poems_db.json غير موجود"}
+    
