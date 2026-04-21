@@ -53,14 +53,14 @@ except ModuleNotFoundError:
         from Backend.services.fasserha_service import fasserha_api_response, fasserha_stream
         from Backend.services.help_me_write_service import generate_poetry_response, complete_poem_response
     except ModuleNotFoundError:
-        from siwar_service import get_siwar_definition
-        from ai_service import explain_word, get_mood_response
-        from verse_searcher import search_verses_for_word
-        from poetry_retriever import get_poems_for_mood, get_db_stats
-        from journey_service import build_time_journey
-        from tts_service import synthesize_journey_speech
-        from fasserha_service import fasserha_api_response, fasserha_stream
-        from help_me_write_service import generate_poetry_response, complete_poem_response
+        from services.siwar_service import get_siwar_definition
+        from services.ai_service import explain_word, get_mood_response
+        from services.verse_searcher import search_verses_for_word
+        from services.poetry_retriever import get_poems_for_mood, get_db_stats
+        from services.journey_service import build_time_journey
+        from services.tts_service import synthesize_journey_speech
+        from services.fasserha_service import fasserha_api_response, fasserha_stream
+        from services.help_me_write_service import generate_poetry_response, complete_poem_response
         
 load_dotenv()
 
@@ -294,11 +294,47 @@ async def complete_write_poetry(req: WriteCompleteRequest):
             "similarity": float(meta_payload.get("similarity") or 0.0),
         }
 
+    alternatives_payload = payload.get("alternatives") or []
+    normalized_alternatives = []
+    if isinstance(alternatives_payload, list):
+        for idx, alt in enumerate(alternatives_payload, start=1):
+            if not isinstance(alt, dict):
+                continue
+            alt_meta = alt.get("meta") or {}
+            if isinstance(alt_meta, dict):
+                alt_meta = {
+                    "poet": alt_meta.get("poet") or "مجهول",
+                    "meter": alt_meta.get("meter") or "-",
+                    "era": alt_meta.get("era") or "-",
+                    "similarity": float(alt_meta.get("similarity") or 0.0),
+                }
+            else:
+                alt_meta = {
+                    "poet": "مجهول",
+                    "meter": "-",
+                    "era": "-",
+                    "similarity": 0.0,
+                }
+
+            normalized_alternatives.append(
+                {
+                    "rank": int(alt.get("rank", idx) or idx),
+                    "poem_verses": alt.get("poem_verses", []),
+                    "meta": alt_meta,
+                    "matched_verse": alt.get("matched_verse"),
+                    "source": str(alt.get("source") or "database"),
+                    "source_label": str(alt.get("source_label") or "قاعدة البيانات"),
+                }
+            )
+
     return WriteCompleteResponse(
         success=bool(payload.get("success", False)),
         found=bool(payload.get("found", False)),
         poem_verses=payload.get("poem_verses", []),
         meta=meta_payload if meta_payload else None,
+        alternatives=normalized_alternatives,
+        current_index=int(payload.get("current_index", 0) or 0),
+        total_candidates=int(payload.get("total_candidates", 0) or 0),
         message=payload.get("message"),
     )
 
@@ -447,433 +483,3 @@ async def interpret_verses_stream(req: InterpretRequest):
         },
     )
  
-
-# =============================================================
-# TODO: باقي الصفحات
-# =============================================================
-# @app.post("/api/write/generate")
-
-
-
-
-
-
-
-# # # يستقبل الطلبات من الفرونت
-# # # يحدد أي endpoint انطلب
-# # # ينادي الخدمة المناسبة
-# # # يرجع JSON
-
-
-# # =============================================================
-# # main.py — FastAPI
-# # تشغيل: uvicorn main:app --reload --port 8000
-# # =============================================================
-
-# import os
-# from fastapi import FastAPI, HTTPException
-# from fastapi.middleware.cors import CORSMiddleware
-# from dotenv import load_dotenv
-
-# from schemas import (
-#     TreasuresRequest, TreasuresResponse, SiwarInfo,
-#     MeaningEntry, ExampleVerse,
-#     MoodRequest, MoodResponse, PoemEntry,
-# )
-# from services.siwar_service   import get_siwar_definition
-# from services.ai_service      import explain_word, get_mood_poems
-# from services.verse_searcher  import search_verses_for_word
-# from services.poetry_retriever import get_poems_for_mood, get_db_stats
-
-# load_dotenv()
-
-# app = FastAPI(title="بيت القصيد API", version="1.0.0")
-
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],
-#     allow_credentials=False,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-
-
-# @app.get("/")
-# async def root():
-#     return {"status": "✅ يعمل"}
-
-
-# @app.get("/health")
-# async def health():
-#     return {
-#         "openai":   "✅" if os.getenv("OPENAI_API_KEY") else "❌ مفقود",
-#         "siwar":    "✅" if os.getenv("SIWAR_API_KEY")  else "❌ مفقود",
-#         "poems_db": get_db_stats(),
-#     }
-
-
-# # =============================================================
-# # 🔌 كنوز الكلمات — POST /api/treasures/explain
-# # =============================================================
-
-# @app.post("/api/treasures/explain", response_model=TreasuresResponse)
-# async def explain_arabic_word(req: TreasuresRequest):
-#     """
-#     1. تحقق من الكلمة (عربية؟ معروفة؟)
-#     2. اسأل معجم سوار عن المعنى الشعري
-#     3. ابحث في الداتاست عن أبيات تحتوي الكلمة
-#     4. أرسل كل شيء لـ GPT
-#     5. أرجع النتيجة
-#     """
-
-#     # الخطوة 1: معجم سوار + تحقق من الكلمة
-#     siwar = await get_siwar_definition(req.word)
-
-#     # إذا الكلمة مو عربية → أرجع خطأ مباشرة
-#     if not siwar.get("is_arabic", True):
-#         return TreasuresResponse(
-#             status     = "error",
-#             error_type = "not_arabic",
-#             message    = "الكلمة اللي كتبتها مو عربية! اكتب كلمة بالحروف العربية.",
-#         )
-
-#     # الخطوة 2: بحث في الداتاست عن أبيات
-#     db_verses = search_verses_for_word(req.word, max_results=5)
-
-#     # الخطوة 3: GPT يشرح
-#     try:
-#         gpt_result = await explain_word(
-#             word         = req.word,
-#             siwar_result = siwar,
-#             db_verses    = db_verses,
-#             verse        = req.verse,
-#             is_followup  = req.is_followup,
-#         )
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"خطأ GPT: {str(e)}")
-
-#     # الخطوة 4: بناء الرد
-#     # ── إذا GPT قرر إن الكلمة غير صحيحة ─────────────────────
-#     if gpt_result.get("status") == "error":
-#         return TreasuresResponse(
-#             status     = "error",
-#             error_type = gpt_result.get("error_type", "unknown_word"),
-#             message    = gpt_result.get("message", "تعذّر شرح هذه الكلمة"),
-#         )
-
-#     # ── بناء المعاني ──────────────────────────────────────────
-#     meanings = [
-#         MeaningEntry(
-#             title       = m.get("title", ""),
-#             explanation = m.get("explanation", ""),
-#         )
-#         for m in gpt_result.get("meanings", [])
-#     ]
-
-#     # ── بناء الأبيات ──────────────────────────────────────────
-#     example_verses = [
-#         ExampleVerse(
-#             verse  = v.get("verse", ""),
-#             poet   = v.get("poet", "مجهول"),
-#             source = v.get("source", "gpt"),
-#         )
-#         for v in gpt_result.get("example_verses", [])
-#     ]
-
-#     return TreasuresResponse(
-#         status          = "ok",
-#         word            = req.word,
-#         primary_meaning = gpt_result.get("primary_meaning", ""),
-#         meanings        = meanings,
-#         poetic_usage    = gpt_result.get("poetic_usage", ""),
-#         symbolism       = gpt_result.get("symbolism", ""),
-#         example_verses  = example_verses,
-#         simple_tip      = gpt_result.get("simple_tip", ""),
-#         confidence      = gpt_result.get("confidence", "medium"),
-#         siwar           = SiwarInfo(
-#             found      = siwar["found"],
-#             definition = siwar.get("definition"),
-#             root       = siwar.get("root"),
-#         ),
-#     )
-
-
-# # =============================================================
-# # 🔌 مزاج اليوم — POST /api/mood/poems
-# # =============================================================
-
-# @app.post("/api/mood/poems", response_model=MoodResponse)
-# async def mood_poems(req: MoodRequest):
-#     try:
-#         category, poems = get_poems_for_mood(req.user_input, count=20)
-#     except FileNotFoundError as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-
-#     try:
-#         result = await get_mood_poems(req.user_input, category, poems)
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"خطأ GPT: {str(e)}")
-
-#     poem_entries = [
-#         PoemEntry(
-#             verse       = p.get("verse", ""),
-#             poet        = p.get("poet", "مجهول"),
-#             explanation = p.get("explanation", ""),
-#         )
-#         for p in result.get("poems", [])
-#     ]
-
-#     return MoodResponse(
-#         feeling_detected  = result.get("feeling_detected", ""),
-#         feeling_intensity = result.get("feeling_intensity", ""),
-#         category_used     = result.get("category_used", category),
-#         opening_line      = result.get("opening_line", ""),
-#         poems             = poem_entries,
-#         closing_line      = result.get("closing_line", ""),
-#     )
-
-
-# # =============================================================
-# # TODO: باقي الصفحات
-# # =============================================================
-# # @app.post("/api/write/generate")
-# # @app.post("/api/journey/explore")
-# # @app.post("/api/interpret/verses")
-
-
-
-# # =============================================================
-# # main.py — FastAPI
-# # تشغيل: uvicorn main:app --reload --port 8000
-# # =============================================================
-
-# import os
-# from fastapi import FastAPI, HTTPException
-# from fastapi.middleware.cors import CORSMiddleware
-# from dotenv import load_dotenv
-
-# from schemas import (
-#     TreasuresRequest, TreasuresResponse, SiwarInfo,
-#     MoodRequest, MoodResponse, PoemEntry,
-# )
-# from services.siwar_service import get_siwar_definition
-# from services.ai_service import explain_word, get_mood_poems
-# from services.poetry_retriever import get_poems_for_mood, get_db_stats
-
-# load_dotenv()
-
-# app = FastAPI(title="بيت القصيد API", version="1.0.0")
-
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],
-#     allow_credentials=False,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-
-
-# # ── فحص الصحة ─────────────────────────────────────────────────
-# @app.get("/")
-# async def root():
-#     return {"status": "✅ يعمل"}
-
-# @app.get("/health")
-# async def health():
-#     return {
-#         "openai":   "✅" if os.getenv("OPENAI_API_KEY") else "❌ مفقود",
-#         "siwar":    "✅" if os.getenv("SIWAR_API_KEY")  else "❌ مفقود",
-#         "poems_db": get_db_stats(),
-#     }
-
-
-# # =============================================================
-# # 🔌 كنوز الكلمات — POST /api/treasures/explain
-# # =============================================================
-
-# @app.post("/api/treasures/explain", response_model=TreasuresResponse)
-# async def explain_arabic_word(req: TreasuresRequest):
-#     siwar = await get_siwar_definition(req.word)
-#     try:
-#         gpt_result = await explain_word(
-#             word=req.word,
-#             siwar_result=siwar,
-#             verse=req.verse,
-#             is_followup=req.is_followup,
-#         )
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"خطأ GPT: {str(e)}")
-
-#     return TreasuresResponse(
-#         word          = req.word,
-#         meaning       = gpt_result.get("meaning", ""),
-#         poetic_usage  = gpt_result.get("poetic_usage", ""),
-#         symbolism     = gpt_result.get("symbolism", ""),
-#         example_verse = gpt_result.get("example_verse", ""),
-#         simple_tip    = gpt_result.get("simple_tip", ""),
-#         confidence    = gpt_result.get("confidence", "medium"),
-#         siwar         = SiwarInfo(**siwar),
-#         verse         = req.verse,
-#     )
-
-
-# # =============================================================
-# # 🔌 مزاج اليوم — POST /api/mood/poems
-# # =============================================================
-
-# @app.post("/api/mood/poems", response_model=MoodResponse)
-# async def mood_poems(req: MoodRequest):
-#     """
-#     1. يكتشف التصنيف من مشاعر المستخدم
-#     2. يجلب أبياتاً من poems_db.json المحلي
-#     3. يرسل لـ GPT ليختار ويشرح
-#     4. يُرجع النتيجة
-#     """
-
-#     # الخطوة 1+2: جلب الأبيات من الداتاست المحلي
-#     try:
-#         category, poems = get_poems_for_mood(req.user_input, count=20)
-#     except FileNotFoundError as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-
-#     # الخطوة 3: GPT يختار ويشرح
-#     try:
-#         result = await get_mood_poems(req.user_input, category, poems)
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"خطأ GPT: {str(e)}")
-
-#     # الخطوة 4: بناء الرد
-#     poem_entries = [
-#         PoemEntry(
-#             verse       = p.get("verse", ""),
-#             poet        = p.get("poet", "مجهول"),
-#             explanation = p.get("explanation", ""),
-#         )
-#         for p in result.get("poems", [])
-#     ]
-
-#     return MoodResponse(
-#         feeling_detected  = result.get("feeling_detected", ""),
-#         feeling_intensity = result.get("feeling_intensity", ""),
-#         category_used     = result.get("category_used", category),
-#         opening_line      = result.get("opening_line", ""),
-#         poems             = poem_entries,
-#         closing_line      = result.get("closing_line", ""),
-#     )
-
-
-# # =============================================================
-# # TODO: باقي الصفحات
-# # =============================================================
-# # @app.post("/api/write/generate")
-# # @app.post("/api/journey/explore")
-# # @app.post("/api/interpret/verses")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# # # =============================================================
-# # # main.py — FastAPI entry point
-# # # تشغيل: uvicorn main:app --reload --port 8000
-# # # توثيق: http://localhost:8000/docs
-# # # =============================================================
-
-# # import os
-# # from fastapi import FastAPI, HTTPException
-# # from fastapi.middleware.cors import CORSMiddleware
-# # from dotenv import load_dotenv
-
-# # from schemas import TreasuresRequest, TreasuresResponse, SiwarInfo
-# # from services.siwar_service import get_siwar_definition
-# # from services.ai_service import explain_word
-
-# # load_dotenv()
-
-# # app = FastAPI(title="بيت القصيد API", version="1.0.0")
-
-# # # app.add_middleware(
-# # #     CORSMiddleware,
-# # #     allow_origins=["http://localhost:5173", "http://localhost:5174",
-# # #                    "http://localhost:3000", "http://127.0.0.1:5173"],
-# # #     allow_credentials=True,
-# # #     allow_methods=["*"],
-# # #     allow_headers=["*"],
-# # # )
-# # app.add_middleware(
-# #     CORSMiddleware,
-# #     allow_origins=["*"],  # مؤقتاً للتطوير
-# #     allow_credentials=False,
-# #     allow_methods=["*"],
-# #     allow_headers=["*"],
-# # )
-
-# # # ── فحص الصحة ─────────────────────────────────────────────────
-# # @app.get("/")
-# # async def root():
-# #     return {"status": "✅ يعمل"}
-
-
-# # @app.get("/health")
-# # async def health():
-# #     return {
-# #         "openai": "✅" if os.getenv("OPENAI_API_KEY") else "❌ مفقود",
-# #         "siwar":  "✅" if os.getenv("SIWAR_API_KEY")  else "❌ مفقود",
-# #     }
-
-
-# # # =============================================================
-# # # 🔌 كنوز الكلمات — POST /api/treasures/explain
-# # # =============================================================
-# # @app.post("/api/treasures/explain", response_model=TreasuresResponse)
-# # async def explain_arabic_word(req: TreasuresRequest):
-# #     """
-# #     1. يسأل معجم سوار
-# #     2. يبني البرومت
-# #     3. يرسل لـ GPT
-# #     4. يُرجع النتيجة للفرونت
-# #     """
-# #     # الخطوة 1: معجم سوار
-# #     siwar = await get_siwar_definition(req.word)
-
-# #     # الخطوة 2+3: GPT
-# #     try:
-# #         gpt_result = await explain_word(
-# #             word=req.word,
-# #             siwar_result=siwar,
-# #             verse=req.verse,
-# #             is_followup=req.is_followup,
-# #         )
-# #     except Exception as e:
-# #         raise HTTPException(status_code=500, detail=f"خطأ GPT: {str(e)}")
-
-# #     # الخطوة 4: رد منظم
-# #     return TreasuresResponse(
-# #         word          = req.word,
-# #         meaning       = gpt_result.get("meaning", ""),
-# #         poetic_usage  = gpt_result.get("poetic_usage", ""),
-# #         symbolism     = gpt_result.get("symbolism", ""),
-# #         example_verse = gpt_result.get("example_verse", ""),
-# #         simple_tip    = gpt_result.get("simple_tip", ""),
-# #         confidence    = gpt_result.get("confidence", "medium"),
-# #         siwar         = SiwarInfo(**siwar),
-# #         verse         = req.verse,
-# #     )
-
-
-# # # =============================================================
-# # # Endpoints الصفحات الأخرى (لاحقاً)
-# # # =============================================================
-# # # TODO: POST /api/mood/poems
-# # # TODO: POST /api/write/generate
-# # # TODO: POST /api/journey/explore
-# # # TODO: POST /api/interpret/verses
