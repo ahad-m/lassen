@@ -1,97 +1,73 @@
+"""
+services/verse_searcher.py
+بحث أبيات "كنوز الكلمات" من Supabase مع الحفاظ على منطق الملف السابق:
+- تطبيع عربي
+- توليد مشتقات للكلمة
+- مطابقة حقيقية
+- تنويع في العصور
+"""
 
+from __future__ import annotations
 
-# =============================================================
-# services/verse_searcher.py
-# يبحث عن أبيات تحتوي الكلمة في poems_db.json
-# مع تنوع العصور وتطابق حقيقي
-# =============================================================
-
-import json
-import os
-import re
 import random
-from typing import Optional
+import re
+from typing import Any
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", "poems_db.json")
+try:
+    # عند التشغيل كحزمة: services.verse_searcher
+    from .supabase_client import get_supabase_client
+except ImportError:
+    # fallback للتشغيل المباشر في بيئات التطوير السريعة
+    from supabase_client import get_supabase_client
 
-_poems_db: dict | None = None
+TABLE_NAME = "poetry_verses"
+DEFAULT_WORD_MAX_RESULTS = 6
+MAX_MATCH_POOL = 50
+PER_VARIANT_LIMIT = 160
 
-# تصنيف العصور — لتنويع الأبيات
+# تصنيف العصور — للحفاظ على التنويع
 ERA_GROUPS = {
-    "قديم":  ["جاهلي", "إسلامي", "أموي", "عباسي", "قديم"],
+    "قديم": ["جاهلي", "اسلامي", "إسلامي", "أموي", "عباسي", "قديم"],
     "وسيط": ["أندلسي", "مملوكي", "أيوبي", "وسيط"],
-    "حديث": ["حديث", "معاصر", "عصر النهضة"],
+    "حديث": ["حديث", "معاصر", "نهضة", "عصر النهضة"],
 }
 
 
-def _load_db() -> dict:
-    global _poems_db
-    if _poems_db is not None:
-        return _poems_db
-    if not os.path.exists(DB_PATH):
-        return {}
-    with open(DB_PATH, "r", encoding="utf-8") as f:
-        _poems_db = json.load(f)
-    return _poems_db
-
-
 def _normalize(text: str) -> str:
-    """
-    تطبيع النص:
-    - إزالة التشكيل
-    - توحيد التاء المربوطة والهاء (كلاهما يصبح ه)
-    - توحيد الألف والهمزات
-    """
-    # إزالة التشكيل
+    text = str(text or "")
     text = re.sub(r"[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC]", "", text)
-    # توحيد التاء المربوطة والهاء في نهاية الكلمة
     text = re.sub(r"ة(\s|$)", r"ه\1", text)
-    # توحيد الألف والهمزات
     text = re.sub(r"[أإآ]", "ا", text)
-    # توحيد الواو بدون همزة
     text = text.replace("ؤ", "و")
-    # توحيد الياء
     text = text.replace("ئ", "ي").replace("ى", "ي")
     return text.strip()
 
 
 def _get_root_variants(word: str) -> list[str]:
-    """
-    يولّد أشكالاً مختلفة للكلمة للبحث:
-    - الكلمة الأصلية
-    - بعد التطبيع
-    - بعد حذف الأحرف الزائدة الشائعة
-    """
     normalized = _normalize(word)
     variants = {normalized}
 
-    # إضافة نسخة بالتاء المربوطة والهاء
     if normalized.endswith("ه"):
         variants.add(normalized[:-1] + "ة")
-        variants.add(normalized[:-1])  # بدون الأخير
+        variants.add(normalized[:-1])
     if normalized.endswith("ة"):
         variants.add(normalized[:-1] + "ه")
         variants.add(normalized[:-1])
 
-    # حذف ال التعريف
     if normalized.startswith("ال"):
         stripped = normalized[2:]
         variants.add(stripped)
         if stripped.endswith("ه"):
             variants.add(stripped[:-1] + "ة")
 
-    # إضافة ال التعريف
     variants.add("ال" + normalized)
-
-    # حذف حرف أخير (للأفعال المتصرفة)
     if len(normalized) > 4:
         variants.add(normalized[:-1])
 
-    return list(variants)
+    return [v for v in variants if v]
 
 
 def _verse_contains_word(verse_normalized: str, word_variants: list[str]) -> bool:
-    """يتحقق إذا البيت يحتوي على الكلمة أو أي شكل منها."""
     for variant in word_variants:
         if len(variant) < 3:
             continue
@@ -100,86 +76,95 @@ def _verse_contains_word(verse_normalized: str, word_variants: list[str]) -> boo
     return False
 
 
-def _detect_era(poem: dict) -> str:
-    """يحاول يكتشف عصر البيت من الميتاداتا."""
-    raw_label = poem.get("raw_label", "").lower()
-    poet = poem.get("poet", "").lower()
+def _detect_era(row: dict[str, Any]) -> str:
+    text_blob = " ".join(
+        [
+            str(row.get("poet_era") or ""),
+            str(row.get("poem_theme") or ""),
+            str(row.get("poet_name") or ""),
+        ]
+    ).lower()
 
     for era_key, keywords in ERA_GROUPS.items():
         for kw in keywords:
-            if kw in raw_label or kw in poet:
+            if kw.lower() in text_blob:
                 return era_key
-
-    # إذا ما عُرف العصر → نعتبره قديم بالافتراضي
     return "قديم"
 
 
-def search_verses_for_word(word: str, max_results: int = 6) -> list[dict]:
-    """
-    يبحث عن أبيات تحتوي على الكلمة مع:
-    1. تطابق حقيقي للكلمة أو جذرها
-    2. تنوع في العصور
-    3. عشوائية في الاختيار لتجنب التكرار
+def _fetch_rows_for_variant(variant: str, limit: int) -> list[dict[str, Any]]:
+    if len(variant.strip()) < 3:
+        return []
+    response = (
+        get_supabase_client()
+        .table(TABLE_NAME)
+        .select("id,verse,poet_name,poet_era,poem_theme")
+        .ilike("verse", f"%{variant}%")
+        .limit(max(1, int(limit)))
+        .execute()
+    )
+    return response.data or []
 
-    Returns:
-        list of {verse, poet, source, era}
-    """
-    db = _load_db()
-    if not db:
+
+def search_verses_for_word(word: str, max_results: int = DEFAULT_WORD_MAX_RESULTS) -> list[dict]:
+    query = str(word or "").strip()
+    if not query:
         return []
 
-    word_variants = _get_root_variants(word)
-    normalized_word = _normalize(word)
-
-    # ── جمع كل الأبيات المطابقة من كل التصنيفات ──────────────
+    word_variants = _get_root_variants(query)
     matched_by_era: dict[str, list[dict]] = {"قديم": [], "وسيط": [], "حديث": []}
     all_matched: list[dict] = []
+    seen_ids: set[str] = set()
 
-    for category, poems in db.items():
-        # نبحث في عينة كبيرة — كلما كانت الكلمة نادرة احتجنا عينة أكبر
-        # 2000 بيت لكل تصنيف يغطي معظم الحالات مع سرعة معقولة
-        sample = random.sample(poems, min(len(poems), 2000))
-
-        for poem in sample:
-            verse = poem.get("verse", "")
+    for variant in word_variants:
+        if len(variant) < 3:
+            continue
+        rows = _fetch_rows_for_variant(variant, limit=PER_VARIANT_LIMIT)
+        for row in rows:
+            verse = str(row.get("verse") or "").strip()
             if not verse:
+                continue
+            row_id = str(row.get("id") or verse)
+            if row_id in seen_ids:
                 continue
 
             verse_normalized = _normalize(verse)
-            if _verse_contains_word(verse_normalized, word_variants):
-                era = _detect_era(poem)
-                entry = {
-                    "verse":  verse,
-                    "poet":   poem.get("poet", "مجهول"),
-                    "source": "database",
-                    "era":    era,
-                }
-                matched_by_era[era].append(entry)
-                all_matched.append(entry)
+            if not _verse_contains_word(verse_normalized, word_variants):
+                continue
 
-                # نوقف البحث في هذا التصنيف إذا وجدنا كافياً
-                if len(all_matched) >= 50:
-                    break
+            seen_ids.add(row_id)
+            era = _detect_era(row)
+            entry = {
+                "verse": verse,
+                "poet": str(row.get("poet_name") or "مجهول").strip() or "مجهول",
+                "source": "database",
+                "era": era,
+            }
+            matched_by_era[era].append(entry)
+            all_matched.append(entry)
 
-    # ── اختيار متنوع من العصور ────────────────────────────────
+            if len(all_matched) >= MAX_MATCH_POOL:
+                break
+        if len(all_matched) >= MAX_MATCH_POOL:
+            break
+
+    if not all_matched:
+        return []
+
     selected: list[dict] = []
+    target_per_era = max(1, max(1, int(max_results)) // 3)
 
-    # أولاً: نحاول نأخذ من كل عصر
-    target_per_era = max(1, max_results // 3)
-
-    for era in ["حديث", "وسيط", "قديم"]:  # الأولوية للحديث
-        era_pool = matched_by_era[era]
+    for era in ["حديث", "وسيط", "قديم"]:
+        era_pool = matched_by_era.get(era, [])
         if era_pool:
             take = min(target_per_era, len(era_pool))
-            chosen = random.sample(era_pool, take)
-            selected.extend(chosen)
+            selected.extend(random.sample(era_pool, take))
 
-    # إذا ما اكتملت النتائج، أكمل من الباقي
-    if len(selected) < max_results and all_matched:
+    if len(selected) < max_results:
         already = {v["verse"] for v in selected}
         remaining = [v for v in all_matched if v["verse"] not in already]
         if remaining:
             extra = min(max_results - len(selected), len(remaining))
             selected.extend(random.sample(remaining, extra))
 
-    return selected[:max_results]
+    return selected[: max(1, int(max_results))]
