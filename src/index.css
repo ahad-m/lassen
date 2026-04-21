@@ -1,0 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Aref+Ruqaa:wght@400;700&family=Reem+Kufi:wght@400;500;600;700&family=Cairo:wght@300;400;500;600;700;800&family=Tajawal:wght@300;400;500;700;800&display=swap');
+
+@layer base {
+  :root {
+    /* Warm beige / parchment base */
+    --background: 36 38% 92%;
+    --foreground: 25 35% 18%;
+
+    --card: 35 40% 90%;
+    --card-foreground: 25 35% 18%;
+
+    --popover: 36 38% 94%;
+    --popover-foreground: 25 35% 18%;
+
+    /* Warm brown primary */
+    --primary: 25 50% 32%;
+    --primary-foreground: 36 40% 95%;
+
+    /* Soft beige */
+    --secondary: 33 30% 85%;
+    --secondary-foreground: 25 35% 18%;
+
+    --muted: 34 22% 86%;
+    --muted-foreground: 25 18% 38%;
+
+    /* Subtle gold accent */
+    --accent: 35 55% 45%;
+    --accent-foreground: 36 40% 96%;
+
+    --destructive: 0 65% 45%;
+    --destructive-foreground: 36 40% 96%;
+
+    --border: 32 22% 78%;
+    --input: 32 22% 80%;
+    --ring: 25 50% 32%;
+
+    --radius: 0.875rem;
+
+    /* Brown gradient palette */
+    --brown-50: 35 35% 92%;
+    --brown-100: 32 32% 82%;
+    --brown-200: 30 30% 70%;
+    --brown-300: 28 35% 55%;
+    --brown-400: 26 40% 42%;
+    --brown-500: 25 50% 32%;
+    --brown-600: 24 55% 24%;
+    --brown-700: 22 60% 18%;
+
+    --navy: 25 35% 18%;
+    --navy-foreground: 36 40% 96%;
+
+    --brown: 25 50% 32%;
+    --brown-foreground: 36 40% 96%;
+
+    /* Soft gold accents */
+    --gold: 38 60% 50%;
+    --gold-light: 40 55% 75%;
+    --gold-dark: 35 60% 35%;
+
+    --ornament: 32 25% 65%;
+
+    --sidebar-background: 25 40% 16%;
+    --sidebar-foreground: 36 30% 88%;
+    --sidebar-primary: 38 60% 55%;
+    --sidebar-primary-foreground: 36 40% 96%;
+    --sidebar-accent: 25 35% 22%;
+    --sidebar-accent-foreground: 36 30% 88%;
+    --sidebar-border: 25 30% 25%;
+    --sidebar-ring: 38 60% 50%;
+
+    /* Reusable gradients */
+    --gradient-warm: linear-gradient(135deg, hsl(35 40% 90%) 0%, hsl(30 35% 78%) 50%, hsl(25 40% 60%) 100%);
+    --gradient-brown: linear-gradient(135deg, hsl(28 35% 55%) 0%, hsl(25 50% 32%) 100%);
+    --gradient-brown-soft: linear-gradient(135deg, hsl(35 30% 82%) 0%, hsl(28 35% 65%) 100%);
+    --gradient-page: radial-gradient(ellipse at top, hsl(36 40% 94%) 0%, hsl(33 32% 84%) 50%, hsl(28 32% 70%) 100%);
+    --shadow-warm: 0 10px 40px -10px hsla(25, 50%, 32%, 0.25);
+    --shadow-soft: 0 4px 20px -4px hsla(25, 40%, 30%, 0.15);
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+
+  html { direction: rtl; }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+    background: var(--gradient-page);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+}
+
+@layer utilities {
+  .font-display { font-family: 'Aref Ruqaa', 'Amiri', serif; }
+  .font-amiri   { font-family: 'Amiri', serif; }
+  .font-kufi    { font-family: 'Reem Kufi', sans-serif; }
+  .font-body    { font-family: 'Cairo', sans-serif; }
+  .font-ui      { font-family: 'Tajawal', sans-serif; }
+
+  .text-gradient-brown {
+    background: var(--gradient-brown);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-gold {
+    background: linear-gradient(135deg, hsl(var(--gold)), hsl(var(--gold-dark)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .bg-warm-page { background: var(--gradient-page); }
+  .bg-brown-gradient { background: var(--gradient-brown); }
+  .bg-brown-soft { background: var(--gradient-brown-soft); }
+
+  .bg-pattern {
+    background-image: url('/bg-texture.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  .glass-card {
+    @apply bg-card/75 backdrop-blur-md border border-border/50 rounded-2xl;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .glass-card-warm {
+    background: linear-gradient(135deg, hsla(35, 40%, 92%, 0.85), hsla(30, 35%, 80%, 0.75));
+    backdrop-filter: blur(12px);
+    @apply border border-border/40 rounded-2xl;
+    box-shadow: var(--shadow-warm);
+  }
+
+  .ornament-border {
+    border-image: linear-gradient(
+      to right,
+      transparent,
+      hsl(var(--gold)) 20%,
+      hsl(var(--gold)) 80%,
+      transparent
+    ) 1;
+  }
+
+  .glow-warm { box-shadow: var(--shadow-warm); }
+  .glow-gold { box-shadow: 0 0 30px -5px hsla(38, 60%, 50%, 0.3); }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  .animate-float-slow {
+    animation: float 10s ease-in-out infinite;
+  }
+  .animate-drift {
+    animation: drift 14s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-12px); }
+  }
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    33%      { transform: translate(8px, -10px) rotate(2deg); }
+    66%      { transform: translate(-6px, 6px) rotate(-2deg); }
+  }
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--ornament)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--ornament));
+    border-radius: 3px;
+  }
+}
