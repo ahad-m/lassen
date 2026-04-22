@@ -4,12 +4,14 @@
  * - كل جولة تعرض بيتين + اسم الشاعر لمدة 5 ثوانٍ
  * - تختفي الأبيات ويكتب المستخدم ما حفظه
  * - تقييم تفصيلي: كل بيت + كل كلمة
+ * - احتفال بمفرقعات عند النتيجة الكاملة 5/5
  * 
  * PoetryMemoryGame.tsx
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, RefreshCw, Timer, Trophy, CheckCircle2, XCircle } from "lucide-react";
+import { Brain, RefreshCw, Timer, Trophy, CheckCircle2, XCircle, Sparkles } from "lucide-react";
+import confetti from "canvas-confetti";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import PageLayout from "@/components/PageLayout";
@@ -57,7 +59,6 @@ interface VerseComparison {
  */
 function compareVerse(expected: string, userInput: string): VerseComparison {
   const expectedNorm = normalizeForCompare(expected);
-  const userNorm = normalizeForCompare(userInput);
 
   const expectedTokens = expectedNorm.split(" ").filter(Boolean);
   const expectedSet = new Set(expectedTokens);
@@ -116,6 +117,60 @@ function splitUserAnswer(answer: string, expectedVerses: string[]): string[] {
   return [firstHalf, secondHalf];
 }
 
+/**
+ * 🎉 إطلاق مفرقعات احتفالية من اليمين واليسار
+ * تستمر ~4 ثوانٍ بتأثير متتابع
+ */
+function fireCelebrationConfetti(): void {
+  const duration = 4000;
+  const animationEnd = Date.now() + duration;
+  const defaults = {
+    startVelocity: 45,
+    spread: 360,
+    ticks: 80,
+    zIndex: 9999,
+    colors: ["#d97706", "#f59e0b", "#fbbf24", "#fde68a", "#92400e", "#78350f"],
+  };
+
+  function randomInRange(min: number, max: number): number {
+    return Math.random() * (max - min) + min;
+  }
+
+  // ── دفعة أولى كبيرة في المنتصف ─────────────────────────────
+  confetti({
+    ...defaults,
+    particleCount: 150,
+    origin: { x: 0.5, y: 0.6 },
+    spread: 100,
+  });
+
+  // ── مفرقعات متتابعة من اليمين واليسار ─────────────────────
+  const interval = window.setInterval(() => {
+    const timeLeft = animationEnd - Date.now();
+
+    if (timeLeft <= 0) {
+      clearInterval(interval);
+      return;
+    }
+
+    const particleCount = 50 * (timeLeft / duration);
+
+    // من اليسار
+    confetti({
+      ...defaults,
+      particleCount,
+      origin: { x: randomInRange(0.05, 0.25), y: Math.random() - 0.2 },
+    });
+
+    // من اليمين
+    confetti({
+      ...defaults,
+      particleCount,
+      origin: { x: randomInRange(0.75, 0.95), y: Math.random() - 0.2 },
+    });
+  }, 250);
+}
+
 type Phase = "idle" | "memorize" | "answer" | "roundResult" | "finished";
 
 interface RoundResult {
@@ -139,7 +194,11 @@ const PoetryMemoryGame = () => {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<RoundResult[]>([]);
 
+  // عشان نتأكد إن المفرقعات ما تشتغل إلا مرة وحدة لكل انتهاء لعبة
+  const celebratedRef = useRef(false);
+
   const score = useMemo(() => results.filter((r) => r.overallOk).length, [results]);
+  const isPerfectScore = score === TOTAL_ROUNDS;
 
   const fetchRound = async () => {
     setLoadingRound(true);
@@ -162,6 +221,7 @@ const PoetryMemoryGame = () => {
     setResults([]);
     setCurrentRound(1);
     setPhase("idle");
+    celebratedRef.current = false; // إعادة تصفير لاحتفال جديد
     await fetchRound();
   };
 
@@ -217,6 +277,14 @@ const PoetryMemoryGame = () => {
     const t = setTimeout(() => setCountdown((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [phase, countdown]);
+
+  // 🎉 شغّل المفرقعات لما نوصل لمرحلة "finished" بنتيجة كاملة
+  useEffect(() => {
+    if (phase === "finished" && isPerfectScore && !celebratedRef.current) {
+      celebratedRef.current = true;
+      fireCelebrationConfetti();
+    }
+  }, [phase, isPerfectScore]);
 
   const lastResult = results[results.length - 1];
 
@@ -454,12 +522,51 @@ const PoetryMemoryGame = () => {
                   animate={{ opacity: 1, y: 0 }}
                   className="text-center space-y-4"
                 >
-                  <p className="font-display text-2xl text-gradient-brown">انتهت اللعبة ✦</p>
-                  <p className="font-kufi text-brown-700">
-                    نتيجتك: {score} / {TOTAL_ROUNDS}
-                  </p>
-                  <div className="flex items-center justify-center gap-3">
-                    <Button className="font-ui bg-brown-gradient text-primary-foreground rounded-full px-8" onClick={startGame}>
+                  {/* عرض خاص للفائز الكامل 5/5 */}
+                  {isPerfectScore ? (
+                    <motion.div
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                      className="space-y-3"
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        <Sparkles className="h-8 w-8 text-amber-500 animate-pulse" />
+                        <p className="font-display text-4xl text-gradient-brown">
+                          أداء استثنائي!
+                        </p>
+                        <Sparkles className="h-8 w-8 text-amber-500 animate-pulse" />
+                      </div>
+                      <motion.p
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="font-kufi text-xl text-brown-700"
+                      >
+                        حفظت جميع الأبيات بإتقان ✦
+                      </motion.p>
+                      <motion.p
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.5 }}
+                        className="font-display text-3xl text-amber-600"
+                      >
+                      </motion.p>
+                    </motion.div>
+                  ) : (
+                    <>
+                      <p className="font-display text-2xl text-gradient-brown">انتهت اللعبة ✦</p>
+                      <p className="font-kufi text-brown-700">
+                        نتيجتك: {score} / {TOTAL_ROUNDS}
+                      </p>
+                    </>
+                  )}
+
+                  <div className="flex items-center justify-center gap-3 pt-2">
+                    <Button
+                      className="font-ui bg-brown-gradient text-primary-foreground rounded-full px-8"
+                      onClick={startGame}
+                    >
                       إعادة اللعب
                     </Button>
                     <Button
@@ -471,6 +578,7 @@ const PoetryMemoryGame = () => {
                         setResults([]);
                         setAnswer("");
                         setRoundData(null);
+                        celebratedRef.current = false;
                       }}
                     >
                       إنهاء
@@ -499,4 +607,3 @@ const PoetryMemoryGame = () => {
 };
 
 export default PoetryMemoryGame;
-
