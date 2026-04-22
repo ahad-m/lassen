@@ -6,6 +6,10 @@ poetry_game_service.py
 - كاش للعدد الكلي (يقلّ طلبات count)
 - طلبات متوازية (concurrent.futures) لجلب عدة عينات بنفس الوقت
 - كاش للـ seed rows لفترة قصيرة لتقليل طلبات Supabase المتكررة
+
+فلترة المحتوى:
+- فلتر كلمات مفتاحية سريع (مجاني)
+- فلتر LLM ذكي للحالات الحساسة (مدفوع لكن نادر الاستدعاء)
 """
 
 from __future__ import annotations
@@ -19,6 +23,21 @@ try:
     from .supabase_client import get_supabase_client
 except ImportError:
     from supabase_client import get_supabase_client
+
+# استيراد خدمة فلترة المحتوى
+try:
+    from .content_filter_service import filter_appropriate_rounds
+except ImportError:
+    try:
+        from content_filter_service import filter_appropriate_rounds
+    except ImportError:
+        # في حالة عدم توفر الخدمة، نتجاوز الفلترة بأمان
+        def filter_appropriate_rounds(
+            rounds_pool: list[dict[str, Any]],
+            verses_key: str = "verses",
+        ) -> list[dict[str, Any]]:
+            print("⚠️ content_filter_service غير متوفر — تم تجاوز الفلترة")
+            return rounds_pool
 
 TABLE_NAME = "poetry_verses"
 ROUNDS_PER_GAME = 5
@@ -252,13 +271,28 @@ def get_poetry_game_round(
     - تتجاهل used_verse_ids لأن الجولة مبنية على زوج أبيات متتالٍ.
     - تتجنب قصائد سبق استخدامها في نفس الجلسة.
     - تتجنب شعراء سبق استخدامهم (إن أمكن) لتنويع التجربة.
+    - تفلتر الأبيات غير المناسبة (محتوى غير إسلامي أو غير لائق).
     """
     used_poem_ids = [str(x) for x in (used_poem_ids or []) if str(x).strip()]
     used_poet_names = [str(x) for x in (used_poet_names or []) if str(x).strip()]
 
-    rounds_pool = build_game_rounds(rounds=max(10, ROUNDS_PER_GAME * 3))
+    # نطلب pool أكبر من المعتاد لأن بعض الجولات ستُفلتر
+    rounds_pool = build_game_rounds(rounds=max(15, ROUNDS_PER_GAME * 4))
     if not rounds_pool:
         return {"success": False, "message": "لا توجد أبيات كافية لبدء اللعبة."}
+
+    # ── فلترة المحتوى غير المناسب ───────────────────────────
+    initial_count = len(rounds_pool)
+    rounds_pool = filter_appropriate_rounds(rounds_pool, verses_key="verses")
+    filtered_count = initial_count - len(rounds_pool)
+    if filtered_count > 0:
+        print(f"ℹ️ تم فلترة {filtered_count} جولة غير مناسبة من أصل {initial_count}")
+
+    if not rounds_pool:
+        return {
+            "success": False,
+            "message": "لم نجد أبياتاً مناسبة حالياً، حاول مرة أخرى.",
+        }
 
     # ── أولاً: تجنب الشعراء والقصائد المستخدمين ─────────────
     selected = None
