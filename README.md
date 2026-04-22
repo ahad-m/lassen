@@ -468,13 +468,11 @@ A React 18 SPA with six main routes, all sharing a `PageLayout` wrapper (sidebar
 
 | Layer | Platform |
 |---|---|
-| Frontend | Lovable / Vercel / Netlify |
+| Frontend | Vercel |
 | Backend | Render.com (Python 3.11.9) |
-| Models | Loaded from `Backend/Models/` at startup |
-| Embeddings | Loaded from `Backend/Embeddings/` at startup |
-| Database | `poems_db.json` in-memory + Supabase |
+| Models | huggingface space |
+| Database |  Supabase |
 
-The `venv/` directory and `Embeddings/*.npy` binary files should be added to `.gitignore` and not committed to the repository.
 
 ---
 
