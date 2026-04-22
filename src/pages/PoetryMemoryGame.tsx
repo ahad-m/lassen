@@ -3,7 +3,7 @@
  * - 5 جولات
  * - كل جولة تعرض بيتين + اسم الشاعر لمدة 5 ثوانٍ
  * - تختفي الأبيات ويكتب المستخدم ما حفظه
- * - تقييم محلي داخل الجلسة فقط
+ * - تقييم تفصيلي: كل بيت + كل كلمة
  * 
  * PoetryMemoryGame.tsx
  */
@@ -19,11 +19,12 @@ import { APIError, getPoetryGameRound, type PoetryGameRoundResponse } from "@/se
 
 const TOTAL_ROUNDS = 5;
 const MEMORIZE_SECONDS = 5;
+const PASS_THRESHOLD = 0.8; // عتبة النجاح (80%)
 
 function normalizeForCompare(text: string): string {
   return (text || "")
     .replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g, "")
-    .replace(/ـ/g, "")  // ← أضف هذا السطر لإزالة التطويل
+    .replace(/ـ/g, "") // إزالة التطويل
     .replace(/[إأآٱ]/g, "ا")
     .replace(/ة/g, "ه")
     .replace(/ى/g, "ي")
@@ -32,23 +33,87 @@ function normalizeForCompare(text: string): string {
     .trim();
 }
 
-function compareVerses(expected: string[], userInput: string): { ok: boolean; similarity: number } {
-  const expectedNorm = normalizeForCompare(expected.join("\n"));
-  const actualNorm = normalizeForCompare(userInput);
-  if (!expectedNorm || !actualNorm) {
-    return { ok: false, similarity: 0 };
+/**
+ * تقارن كلمة المستخدم بكلمات البيت الأصلي
+ * وترجع true لو الكلمة موجودة في البيت الأصلي
+ */
+function isWordCorrect(userWord: string, expectedWords: Set<string>): boolean {
+  const normalized = normalizeForCompare(userWord);
+  return expectedWords.has(normalized);
+}
+
+interface VerseComparison {
+  verseIndex: number;
+  expected: string;
+  userAnswer: string;
+  similarity: number;
+  ok: boolean;
+  userWords: Array<{ word: string; correct: boolean }>;
+  missingWords: string[]; // كلمات البيت الأصلي اللي ما كتبها المستخدم
+}
+
+/**
+ * تقارن بيت واحد مع إجابة المستخدم له
+ */
+function compareVerse(expected: string, userInput: string): VerseComparison {
+  const expectedNorm = normalizeForCompare(expected);
+  const userNorm = normalizeForCompare(userInput);
+
+  const expectedTokens = expectedNorm.split(" ").filter(Boolean);
+  const expectedSet = new Set(expectedTokens);
+  const userTokensRaw = (userInput || "").trim().split(/\s+/).filter(Boolean);
+
+  // تحديد صحة كل كلمة كتبها المستخدم
+  const userWords = userTokensRaw.map((word) => ({
+    word,
+    correct: isWordCorrect(word, expectedSet),
+  }));
+
+  // الكلمات الناقصة (موجودة في الأصل لكن مش في إجابة المستخدم)
+  const userTokensNorm = new Set(userTokensRaw.map((w) => normalizeForCompare(w)));
+  const missingWords = expectedTokens.filter((w) => !userTokensNorm.has(w));
+
+  // حساب النسبة
+  const matched = expectedTokens.filter((t) => userTokensNorm.has(t)).length;
+  const similarity = expectedTokens.length ? matched / expectedTokens.length : 0;
+
+  return {
+    verseIndex: 0, // يُحدد خارجياً
+    expected,
+    userAnswer: userInput,
+    similarity,
+    ok: similarity >= PASS_THRESHOLD,
+    userWords,
+    missingWords,
+  };
+}
+
+/**
+ * تقسم إجابة المستخدم إلى بيتين (بناءً على السطر الفاصل)
+ * لو المستخدم ما حط سطر جديد، نحاول نقسم بعدد الكلمات
+ */
+function splitUserAnswer(answer: string, expectedVerses: string[]): string[] {
+  const trimmed = answer.trim();
+  if (!trimmed) return ["", ""];
+
+  // لو فيه سطور منفصلة
+  const lines = trimmed.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length >= 2) {
+    return [lines[0], lines.slice(1).join(" ")];
   }
-  if (expectedNorm === actualNorm) {
-    return { ok: true, similarity: 1 };
+
+  // لو سطر واحد، نقسمه بناءً على عدد كلمات البيت الأول المتوقع
+  const firstExpectedWords = normalizeForCompare(expectedVerses[0] || "").split(" ").filter(Boolean).length;
+  const allWords = trimmed.split(/\s+/);
+  
+  if (allWords.length <= firstExpectedWords) {
+    // كل الإجابة للبيت الأول
+    return [trimmed, ""];
   }
-  const expTokens = expectedNorm.split(" ").filter(Boolean);
-  const actTokens = new Set(actualNorm.split(" ").filter(Boolean));
-  if (!expTokens.length) {
-    return { ok: false, similarity: 0 };
-  }
-  const matched = expTokens.filter((t) => actTokens.has(t)).length;
-  const similarity = matched / expTokens.length;
-  return { ok: similarity >= 0.9, similarity };
+
+  const firstHalf = allWords.slice(0, firstExpectedWords).join(" ");
+  const secondHalf = allWords.slice(firstExpectedWords).join(" ");
+  return [firstHalf, secondHalf];
 }
 
 type Phase = "idle" | "memorize" | "answer" | "roundResult" | "finished";
@@ -59,8 +124,9 @@ interface RoundResult {
   poet: string;
   expected: string[];
   answer: string;
-  ok: boolean;
-  similarity: number;
+  verseComparisons: VerseComparison[];
+  overallOk: boolean;
+  overallSimilarity: number;
 }
 
 const PoetryMemoryGame = () => {
@@ -73,7 +139,7 @@ const PoetryMemoryGame = () => {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<RoundResult[]>([]);
 
-  const score = useMemo(() => results.filter((r) => r.ok).length, [results]);
+  const score = useMemo(() => results.filter((r) => r.overallOk).length, [results]);
 
   const fetchRound = async () => {
     setLoadingRound(true);
@@ -111,7 +177,21 @@ const PoetryMemoryGame = () => {
   const submitAnswer = () => {
     if (!roundData) return;
     const verseStrings = roundData.verses.map((v) => v.verse);
-    const { ok, similarity } = compareVerses(verseStrings, answer);
+
+    // قسم إجابة المستخدم إلى بيتين
+    const userVerses = splitUserAnswer(answer, verseStrings);
+
+    // قارن كل بيت على حدة
+    const verseComparisons: VerseComparison[] = verseStrings.map((expected, idx) => {
+      const comp = compareVerse(expected, userVerses[idx] || "");
+      return { ...comp, verseIndex: idx + 1 };
+    });
+
+    // التقييم الكلي: كلا البيتين يجب أن يكونا صحيحين
+    const overallOk = verseComparisons.every((c) => c.ok);
+    const overallSimilarity =
+      verseComparisons.reduce((sum, c) => sum + c.similarity, 0) / verseComparisons.length;
+
     setResults((prev) => [
       ...prev,
       {
@@ -120,8 +200,9 @@ const PoetryMemoryGame = () => {
         poet: roundData.poet_name || "مجهول",
         expected: verseStrings,
         answer,
-        ok,
-        similarity,
+        verseComparisons,
+        overallOk,
+        overallSimilarity,
       },
     ]);
     setPhase("roundResult");
@@ -136,6 +217,8 @@ const PoetryMemoryGame = () => {
     const t = setTimeout(() => setCountdown((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [phase, countdown]);
+
+  const lastResult = results[results.length - 1];
 
   return (
     <PageLayout title="لعبة حفظ الأبيات">
@@ -217,7 +300,9 @@ const PoetryMemoryGame = () => {
                   exit={{ opacity: 0, y: -8 }}
                   className="space-y-3"
                 >
-                  <p className="font-body text-brown-700 text-center">اكتب البيتين الآن من الذاكرة:</p>
+                  <p className="font-body text-brown-700 text-center">
+                    اكتب البيتين الآن من الذاكرة (كل بيت في سطر):
+                  </p>
                   <Textarea
                     value={answer}
                     onChange={(e) => setAnswer(e.target.value)}
@@ -236,40 +321,129 @@ const PoetryMemoryGame = () => {
                 </motion.div>
               )}
 
-              {phase === "roundResult" && (
+              {phase === "roundResult" && lastResult && (
                 <motion.div
                   key="roundResult"
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
-                  className="text-center space-y-4"
+                  className="space-y-4"
                 >
-                  {results[results.length - 1]?.ok ? (
-                    <p className="font-kufi text-green-700 flex items-center justify-center gap-2">
-                      <CheckCircle2 className="h-5 w-5" />
-                      ممتاز! إجابتك صحيحة
-                    </p>
-                  ) : (
-                    <p className="font-kufi text-red-700 flex items-center justify-center gap-2">
-                      <XCircle className="h-5 w-5" />
-                      لم تُحسب هذه الجولة
-                    </p>
-                  )}
-
-                  <div className="p-4 rounded-xl border border-brown-300/40 bg-brown-50/50 text-center space-y-2">
-                    <p className="font-ui text-xs text-brown-500">
-                      الشاعر: {results[results.length - 1]?.poet || "مجهول"}
-                    </p>
-                    {(results[results.length - 1]?.expected || []).map((v, i) => (
-                      <p key={i} className="font-amiri text-base text-brown-800 leading-loose">
-                        {v}
+                  {/* النتيجة الكلية */}
+                  <div className="text-center">
+                    {lastResult.overallOk ? (
+                      <p className="font-kufi text-green-700 flex items-center justify-center gap-2 text-lg">
+                        <CheckCircle2 className="h-5 w-5" />
+                        ممتاز! حفظت البيتين بشكل صحيح
                       </p>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="font-kufi text-amber-700 flex items-center justify-center gap-2 text-lg">
+                          <XCircle className="h-5 w-5" />
+                          راجع إجابتك أدناه
+                        </p>
+                        <p className="font-ui text-xs text-brown-500">
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* مقارنة تفصيلية لكل بيت */}
+                  <div className="space-y-3">
+                    {lastResult.verseComparisons.map((comp, idx) => (
+                      <div
+                        key={idx}
+                        className={`p-4 rounded-xl border-2 ${
+                          comp.ok
+                            ? "border-green-300/50 bg-green-50/40"
+                            : "border-red-300/50 bg-red-50/40"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-ui text-xs text-brown-600">
+                            البيت {comp.verseIndex}
+                          </span>
+                          <span
+                            className={`font-ui text-xs flex items-center gap-1 ${
+                              comp.ok ? "text-green-700" : "text-red-700"
+                            }`}
+                          >
+                            {comp.ok ? (
+                              <>
+                                <CheckCircle2 className="h-4 w-4" /> صحيح
+                              </>
+                            ) : (
+                              <>
+                              </>
+                            )}
+                          </span>
+                        </div>
+
+                        {/* البيت الأصلي */}
+                        <div className="mb-2">
+                          <p className="font-ui text-xs text-brown-500 mb-1">البيت الأصلي:</p>
+                          <p className="font-amiri text-base text-brown-800 leading-loose">
+                            {comp.expected}
+                          </p>
+                        </div>
+
+                        {/* إجابة المستخدم مع تلوين الكلمات */}
+                        {comp.userWords.length > 0 && (
+                          <div className="mb-2">
+                            <p className="font-ui text-xs text-brown-500 mb-1">إجابتك:</p>
+                            <p className="font-amiri text-base leading-loose">
+                              {comp.userWords.map((w, i) => (
+                                <span
+                                  key={i}
+                                  className={
+                                    w.correct
+                                      ? "text-green-700 font-semibold"
+                                      : "text-red-700 line-through decoration-red-500 font-semibold"
+                                  }
+                                >
+                                  {w.word}
+                                  {i < comp.userWords.length - 1 ? " " : ""}
+                                </span>
+                              ))}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* الكلمات الناقصة */}
+                        {comp.missingWords.length > 0 && (
+                          <div>
+                            <p className="font-ui text-xs text-brown-500 mb-1">
+                              كلمات فاتتك:
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                              {comp.missingWords.map((w, i) => (
+                                <span
+                                  key={i}
+                                  className="font-amiri text-sm px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-300/60"
+                                >
+                                  {w}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
 
-                  <Button className="font-ui bg-brown-gradient text-primary-foreground rounded-full px-8" onClick={nextRound}>
-                    {currentRound >= TOTAL_ROUNDS ? "عرض النتيجة النهائية" : "الجولة التالية"}
-                  </Button>
+                  {/* اسم الشاعر */}
+                  <p className="font-ui text-xs text-brown-500 text-center">
+                    — {lastResult.poet}
+                  </p>
+
+                  <div className="flex justify-center">
+                    <Button
+                      className="font-ui bg-brown-gradient text-primary-foreground rounded-full px-8"
+                      onClick={nextRound}
+                    >
+                      {currentRound >= TOTAL_ROUNDS ? "عرض النتيجة النهائية" : "الجولة التالية"}
+                    </Button>
+                  </div>
                 </motion.div>
               )}
 
@@ -325,3 +499,4 @@ const PoetryMemoryGame = () => {
 };
 
 export default PoetryMemoryGame;
+
