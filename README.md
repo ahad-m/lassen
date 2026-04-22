@@ -33,15 +33,12 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
-![shadcn](https://img.shields.io/badge/shadcn%2Fui-000000?style=for-the-badge&logo=shadcnui&logoColor=white)
-![Framer Motion](https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
 ![Python](https://img.shields.io/badge/Python_3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)
 ![HuggingFace](https://img.shields.io/badge/HuggingFace-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)
 ![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
 ![ElevenLabs](https://img.shields.io/badge/ElevenLabs-000000?style=for-the-badge&logoColor=white)
-![Tavily](https://img.shields.io/badge/Tavily_Search-4A90D9?style=for-the-badge&logoColor=white)
 ![Render](https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=black)
 
 ---
@@ -285,14 +282,8 @@ The same AraBERT v2 base is reused for topic classification. Shared pre-training
 
 ### Frontend
 - **React 18** + **TypeScript**
-- **Vite** — development server and bundler
-- **Tailwind CSS** — utility-first styling
-- **shadcn/ui** — 49 pre-built, customizable UI components
 - **React Router** — client-side routing
-- **React Query** — server state management
 - **Framer Motion** — animations (floating Arabic letters background, transitions)
-- **Recharts** — data visualization
-- **Sonner** — toast notifications
 - **React Hook Form** — form management
 
 ### Backend
@@ -301,11 +292,9 @@ The same AraBERT v2 base is reused for topic classification. Shared pre-training
 - **OpenAI API** — LLM for verse generation, mood responses, interpretation, and word explanation
 - **HuggingFace Transformers + PyTorch** — fine-tuned Arabic poetry classifiers (meter, era, topic)
 - **Sentence-Transformers** — pre-computed embedding vectors for semantic verse search
-- **Tavily Search API** — web search fallback that scrapes `aldiwan.net` for verse completion
 - **ElevenLabs API** — TTS audio narration for Journey Through Time
 - **Siwar API** — Arabic lexicon for authoritative word definitions
 - **Supabase** — supplementary data storage
-- **Pydantic** — request/response validation
 
 ---
 
