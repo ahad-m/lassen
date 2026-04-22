@@ -41,6 +41,7 @@ def _build_request_body(text: str, model_id: str) -> bytes:
             "similarity_boost": 0.75,
             "style": 0.35,
             "use_speaker_boost": True,
+            "speed": 1.12
         },
     }
     return json.dumps(payload, ensure_ascii=False).encode("utf-8")
