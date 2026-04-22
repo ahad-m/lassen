@@ -1,16 +1,17 @@
 /**
  * لعبة: تحدي حفظ الأبيات
  * - 5 جولات
- * - كل جولة تعرض بيتين + اسم الشاعر لمدة 5 ثوانٍ
+ * - كل جولة تعرض بيتين + اسم الشاعر لمدة 7 ثوانٍ
  * - تختفي الأبيات ويكتب المستخدم ما حفظه
  * - تقييم تفصيلي: كل بيت + كل كلمة
  * - احتفال بمفرقعات عند النتيجة الكاملة 5/5
- * test test
+ * - رسائل تحميس ذكية في الجولتين 3 و 4 حسب الأداء
+ * 
  * PoetryMemoryGame.tsx
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Brain, RefreshCw, Timer, Trophy, CheckCircle2, XCircle, Sparkles } from "lucide-react";
+import { Brain, RefreshCw, Timer, Trophy, CheckCircle2, XCircle, Sparkles, Flame } from "lucide-react";
 import confetti from "canvas-confetti";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,7 +21,7 @@ import OrnamentalDivider from "@/components/OrnamentalDivider";
 import { APIError, getPoetryGameRound, type PoetryGameRoundResponse } from "@/services/api";
 
 const TOTAL_ROUNDS = 5;
-const MEMORIZE_SECONDS = 5;
+const MEMORIZE_SECONDS = 7; // ⬅️ تغيّر من 5 إلى 7
 const PASS_THRESHOLD = 0.8; // عتبة النجاح (80%)
 
 function normalizeForCompare(text: string): string {
@@ -171,7 +172,86 @@ function fireCelebrationConfetti(): void {
   }, 250);
 }
 
-type Phase = "idle" | "memorize" | "answer" | "roundResult" | "finished";
+/**
+ * 🔥 يولّد رسالة تحميس ذكية بناءً على الجولة الحالية والأداء السابق
+ * ترجع null إذا ما في رسالة مناسبة لهذه الجولة
+ */
+interface EncouragementMessage {
+  title: string;
+  subtitle: string;
+  emoji: string;
+}
+
+function getEncouragementMessage(
+  currentRound: number,
+  previousResults: RoundResult[],
+): EncouragementMessage | null {
+  const correctCount = previousResults.filter((r) => r.overallOk).length;
+  const totalPlayed = previousResults.length;
+
+  // ── قبل الجولة الثالثة (بعد اللعب لجولتين) ──────────────
+  if (currentRound === 3 && totalPlayed === 2) {
+    if (correctCount === 2) {
+      // جاب الاثنين صح
+      return {
+        title: "كفوك يا بطل/ه! ",
+        subtitle: "ما بقى شي… استمر بنفس الروعة!",
+        emoji: " ",
+      };
+    } else if (correctCount === 1) {
+      // جاب وحدة صح ووحدة خطأ
+      return {
+        title: "عندك إمكانية حلوة ✨",
+        subtitle: "الجولة الجاية فرصتك تعدّل الكفّة!",
+        emoji: "",
+      };
+    } else {
+      // ما جاب ولا وحدة
+      return {
+        title: "لحظة تنفّس ونبدأ من جديد ",
+        subtitle: "الحفظ يحتاج تركيز… ركّز معي هالمرة!",
+        emoji: " ",
+      };
+    }
+  }
+
+  // ── قبل الجولة الرابعة (بعد اللعب لثلاث جولات) ──────────
+  if (currentRound === 4 && totalPlayed === 3) {
+    if (correctCount === 3) {
+      // جاب الثلاثة كلهم صح
+      return {
+        title: "قرّبت على الكمال! ",
+        subtitle: "باقي جولتين بس… لا تفلت الإنجاز!",
+        emoji: "🌟",
+      };
+    } else if (correctCount === 2) {
+      // جاب اثنين صح
+      return {
+        title: "أداؤك ممتاز ",
+        subtitle: "ركّز شوي أكثر وتحصد النتيجة الذهبية!",
+        emoji: "✨",
+      };
+    } else if (correctCount === 1) {
+      // جاب وحدة صح
+      return {
+        title: "الرحلة ما خلصت بعد ",
+        subtitle: "كل جولة فرصة… خلّك مركّز وركّب أفكارك!",
+        emoji: "",
+      };
+    } else {
+      // ما جاب ولا وحدة
+      return {
+        title: "اهدأ… الحفظ فن ",
+        subtitle: "خذ نفسك ونتحدى مرة ثانية، القادم أجمل!",
+        emoji: "",
+      };
+    }
+  }
+
+  return null;
+}
+
+type Phase = "idle" | "memorize" | "answer" | "roundResult" | "encouragement" | "finished";
 
 interface RoundResult {
   round: number;
@@ -193,6 +273,7 @@ const PoetryMemoryGame = () => {
   const [loadingRound, setLoadingRound] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<RoundResult[]>([]);
+  const [encouragement, setEncouragement] = useState<EncouragementMessage | null>(null);
 
   // عشان نتأكد إن المفرقعات ما تشتغل إلا مرة وحدة لكل انتهاء لعبة
   const celebratedRef = useRef(false);
@@ -221,15 +302,42 @@ const PoetryMemoryGame = () => {
     setResults([]);
     setCurrentRound(1);
     setPhase("idle");
+    setEncouragement(null);
     celebratedRef.current = false; // إعادة تصفير لاحتفال جديد
     await fetchRound();
   };
 
+  /**
+   * تنتقل للجولة التالية
+   * - تتحقق إذا في رسالة تحميس → تعرضها أولاً
+   * - بعدين تجلب الجولة الجاية
+   */
   const nextRound = async () => {
     if (currentRound >= TOTAL_ROUNDS) {
       setPhase("finished");
       return;
     }
+
+    const nextRoundNumber = currentRound + 1;
+    const message = getEncouragementMessage(nextRoundNumber, results);
+
+    if (message) {
+      // عندنا رسالة تحميس → اعرضها قبل الجولة
+      setEncouragement(message);
+      setPhase("encouragement");
+      return;
+    }
+
+    // ما في رسالة → انتقل للجولة التالية مباشرة
+    setCurrentRound(nextRoundNumber);
+    await fetchRound();
+  };
+
+  /**
+   * يُستدعى لما المستخدم يضغط "متابعة" بعد رسالة التحميس
+   */
+  const continueAfterEncouragement = async () => {
+    setEncouragement(null);
     setCurrentRound((n) => n + 1);
     await fetchRound();
   };
@@ -297,7 +405,7 @@ const PoetryMemoryGame = () => {
             <Brain className="h-10 w-10 text-brown-600 mx-auto mb-3 animate-float" />
             <h2 className="font-display text-3xl text-gradient-brown mb-2">تحدّي حفظ الأبيات</h2>
             <p className="font-kufi text-brown-600">
-              خمس جولات — في كل جولة احفظ بيتين خلال 5 ثوانٍ ثم اكتبهما
+              خمس جولات — في كل جولة احفظ بيتين خلال 7 ثوانٍ ثم اكتبهما
             </p>
           </motion.div>
 
@@ -515,6 +623,59 @@ const PoetryMemoryGame = () => {
                 </motion.div>
               )}
 
+              {/* 🔥 مرحلة رسالة التحميس (بين الجولات) */}
+              {phase === "encouragement" && encouragement && (
+                <motion.div
+                  key="encouragement"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ type: "spring", stiffness: 200, damping: 18 }}
+                  className="text-center space-y-5 py-8"
+                >
+                  <motion.div
+                    initial={{ rotate: -10, scale: 0 }}
+                    animate={{ rotate: 0, scale: 1 }}
+                    transition={{ delay: 0.2, type: "spring", stiffness: 300 }}
+                    className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-gradient-to-br from-amber-200 to-amber-400 shadow-lg"
+                  >
+                    <Flame className="h-10 w-10 text-amber-700" />
+                  </motion.div>
+
+                  <motion.p
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="font-display text-3xl text-gradient-brown"
+                  >
+                    {encouragement.title}
+                  </motion.p>
+
+                  <motion.p
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.6 }}
+                    className="font-kufi text-lg text-brown-700"
+                  >
+                    {encouragement.subtitle}
+                  </motion.p>
+
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.8 }}
+                  >
+                    <Button
+                      className="font-ui bg-brown-gradient text-primary-foreground rounded-full px-10 py-6 text-base"
+                      onClick={continueAfterEncouragement}
+                      disabled={loadingRound}
+                    >
+                      {loadingRound ? "جارٍ التحضير..." : "يلا نكمّل "}
+                    </Button>
+                  </motion.div>
+                </motion.div>
+              )}
+
               {phase === "finished" && (
                 <motion.div
                   key="finished"
@@ -578,6 +739,7 @@ const PoetryMemoryGame = () => {
                         setResults([]);
                         setAnswer("");
                         setRoundData(null);
+                        setEncouragement(null);
                         celebratedRef.current = false;
                       }}
                     >
