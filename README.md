@@ -39,7 +39,6 @@
 ![Python](https://img.shields.io/badge/Python_3.11-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)
 ![HuggingFace](https://img.shields.io/badge/HuggingFace-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)
-![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
 ![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
 ![ElevenLabs](https://img.shields.io/badge/ElevenLabs-000000?style=for-the-badge&logoColor=white)
 ![Tavily](https://img.shields.io/badge/Tavily_Search-4A90D9?style=for-the-badge&logoColor=white)
@@ -477,8 +476,7 @@ The `venv/` directory and `Embeddings/*.npy` binary files should be added to `.g
 ---
 
 ## Design Philosophy
-
-لَسِن is designed to feel like a digital manuscript. The UI draws on classical Arabic aesthetics — parchment textures, calligraphic letter animations, gold ornamental dividers, and Islamic geometric motifs — rendered with modern web technology to deliver a seamless, emotionally resonant experience.
+Lassen\لَسِن is designed to feel like a digital manuscript. The UI draws on classical Arabic aesthetics — parchment textures, calligraphic letter animations, gold ornamental dividers, and Islamic geometricmotifs — rendered with modern web technology to deliver a seamless, emotionally resonant experience.
 
 ---
 
