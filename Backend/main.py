@@ -23,6 +23,7 @@ from schemas import (
     InterpretRequest, InterpretResponse,
     WriteGenerateRequest, WriteGenerateResponse,
     WriteCompleteRequest, WriteCompleteResponse,
+    MemoryGameRoundRequest, MemoryGameRoundResponse, MemoryGameVerse,
 )
 
 # دعم التشغيل لثلاث هيكليات:
@@ -42,6 +43,7 @@ try:
     from services.tts_service import synthesize_journey_speech
     from services.fasserha_service import fasserha_api_response, fasserha_stream
     from services.help_me_write_service import generate_poetry_response, complete_poem_response
+    from services.poetry_game_service import get_poetry_game_round
 except ModuleNotFoundError:
     try:
         from Backend.services.siwar_service import get_siwar_definition
@@ -52,6 +54,7 @@ except ModuleNotFoundError:
         from Backend.services.tts_service import synthesize_journey_speech
         from Backend.services.fasserha_service import fasserha_api_response, fasserha_stream
         from Backend.services.help_me_write_service import generate_poetry_response, complete_poem_response
+        from Backend.services.poetry_game_service import get_poetry_game_round
     except ModuleNotFoundError:
         from services.siwar_service import get_siwar_definition
         from services.ai_service import explain_word, get_mood_response
@@ -61,6 +64,7 @@ except ModuleNotFoundError:
         from services.tts_service import synthesize_journey_speech
         from services.fasserha_service import fasserha_api_response, fasserha_stream
         from services.help_me_write_service import generate_poetry_response, complete_poem_response
+        from services.poetry_game_service import get_poetry_game_round
         
 load_dotenv()
 
@@ -482,4 +486,41 @@ async def interpret_verses_stream(req: InterpretRequest):
             "Connection": "keep-alive",
         },
     )
- 
+
+
+# =============================================================
+# 🔌 لعبة حفظ الأبيات — POST /api/game/round
+# =============================================================
+
+@app.post("/api/game/round", response_model=MemoryGameRoundResponse)
+async def poetry_game_round(req: MemoryGameRoundRequest):
+    try:
+        payload = await asyncio.to_thread(get_poetry_game_round, req.exclude_poem_ids)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"خطأ لعبة الأبيات: {str(e)}")
+
+    if not payload or not payload.get("success"):
+        raise HTTPException(
+            status_code=422,
+            detail=payload.get("message") if payload else "تعذّر جلب جولة جديدة.",
+        )
+
+    round_data = payload.get("round") or {}
+    verses = round_data.get("verses") or []
+
+    if not isinstance(verses, list) or len(verses) < 2:
+        raise HTTPException(status_code=422, detail="تعذّر تجهيز بيتين للجولة.")
+
+    return MemoryGameRoundResponse(
+        success=True,
+        poem_id=str(round_data.get("poem_id") or ""),
+        poet_name=str(round_data.get("poet_name") or "مجهول"),
+        verses=[
+            MemoryGameVerse(verse_index=1, verse=str(verses[0])),
+            MemoryGameVerse(verse_index=2, verse=str(verses[1])),
+        ],
+        round_seconds=5,
+        message=None,
+    )

@@ -2,6 +2,7 @@
 // src/services/api.ts
 // =============================================================
 //const BASE = "http://localhost:8000";// اذا بتشغلينه لوكال خليه localhost:8000
+//const BASE = "http://localhost:8000";
 const BASE = "https://lassen-final-project-1.onrender.com";
 
 export class APIError extends Error {
@@ -227,6 +228,36 @@ export interface InterpretResponse {
 export const interpretVerses = (poem: string, depth: "brief" | "deep" = "brief") =>
   post<InterpretResponse>("/api/interpret/verses", { poem, depth });
 
+
+// ── لعبة الحفظ الشعري ──────────────────────────────────────────
+
+export interface PoetryGameRoundVerse {
+  verse_index: number;
+  verse: string;
+}
+
+export interface PoetryGameRound {
+  poem_id: string;
+  poet_name: string;
+  verses: PoetryGameRoundVerse[];
+  round_seconds: number;
+}
+
+export interface PoetryGameRoundResponse {
+  success: boolean;
+  poem_id: string;
+  poet_name: string;
+  verses: PoetryGameRoundVerse[];
+  round_seconds: number;
+  message?: string;
+}
+
+export interface PoetryGameRoundRequest {
+  exclude_poem_ids?: string[];
+}
+
+export const getPoetryGameRound = (payload: PoetryGameRoundRequest = {}) =>
+  post<PoetryGameRoundResponse>("/api/game/round", payload);
 export interface InterpretStreamHandlers {
   onClassify?: (data: {
     meter: InterpretMeter;
@@ -311,87 +342,3 @@ export async function interpretVersesStream(
     }
   }
 }
-// TODO:
-// export const generateVerse   = (idea: string)   => post("/api/write/generate",   { idea });
-
-
-
-
-// // =============================================================
-// // src/services/api.ts
-// // =============================================================
-
-// const BASE = (import.meta.env.VITE_API_URL as string) || "http://localhost:8000";
-
-// export class APIError extends Error {
-//   constructor(public status: number, message: string) { super(message); }
-// }
-
-// async function post<T>(path: string, body: unknown): Promise<T> {
-//   const res = await fetch(`${BASE}${path}`, {
-//     method: "POST",
-//     headers: { "Content-Type": "application/json" },
-//     body: JSON.stringify(body),
-//   });
-//   if (!res.ok) {
-//     const err = await res.json().catch(() => ({}));
-//     throw new APIError(res.status, err.detail ?? `خطأ ${res.status}`);
-//   }
-//   return res.json();
-// }
-
-// // ── كنوز الكلمات ──────────────────────────────────────────────
-
-// export interface MeaningEntry {
-//   title:       string;
-//   explanation: string;
-//   source:      "siwar" | "gpt";   // ← من وين المعنى
-// }
-
-// export interface ExampleVerse {
-//   verse:  string;
-//   poet:   string;
-//   source: "database" | "gpt";     // ← من وين البيت
-// }
-
-// export interface TreasuresResponse {
-//   status:          "ok" | "error";
-//   // ok
-//   word?:            string;
-//   plural?:          string;        // ← جمع الكلمة
-//   primary_meaning?: string;
-//   meanings?:        MeaningEntry[];
-//   poetic_usage?:    string;
-//   symbolism?:       string;
-//   example_verses?:  ExampleVerse[];
-//   simple_tip?:      string;
-//   confidence?:      "high" | "medium" | "low";
-//   siwar?:           { found: boolean; definition: string | null; root: string | null };
-//   // error
-//   error_type?:      string;
-//   message?:         string;
-// }
-
-// export const explainWord = (word: string, verse?: string, is_followup = false) =>
-//   post<TreasuresResponse>("/api/treasures/explain", { word, verse, is_followup });
-
-
-// // ── مزاج اليوم ────────────────────────────────────────────────
-
-// export interface PoemEntry {
-//   verse: string; poet: string; explanation: string;
-// }
-
-// export interface MoodResponse {
-//   feeling_detected: string; feeling_intensity: string;
-//   category_used: string; opening_line: string;
-//   poems: PoemEntry[]; closing_line: string;
-// }
-
-// export const getMoodPoems = (user_input: string) =>
-//   post<MoodResponse>("/api/mood/poems", { user_input });
-
-// // TODO:
-// // export const generateVerse   = (idea: string)   => post("/api/write/generate",   { idea });
-// // export const getTimeJourney  = (topic: string)  => post("/api/journey/explore",  { topic });
-// // export const interpretVerses = (verses: string) => post("/api/interpret/verses", { verses });

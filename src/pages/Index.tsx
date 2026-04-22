@@ -3,7 +3,7 @@
  */
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { Heart, PenLine, Clock, BookOpen, MessageSquareText, ArrowLeft } from "lucide-react";
+import { Heart, PenLine, Clock, BookOpen, MessageSquareText, ArrowLeft, Brain } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import OrnamentalDivider from "@/components/OrnamentalDivider";
 
@@ -15,6 +15,7 @@ const features = [
   { title: "تفسير الأبيات",  description: "أدخل بيتاً شعرياً واحصل على شرح مبسّط",        icon: MessageSquareText, url: "/interpret" },
   { title: "كتابة الأبيات",  description: "ولّد أبيات شعرية أو أكمل بيتاً ناقصاً",        icon: PenLine,           url: "/write" },
   { title: "كنوز الكلمات",   description: "اكتشف معاني الكلمات واستخداماتها الشعرية",     icon: BookOpen,          url: "/treasures" },
+  { title: "لعبة الحفظ",     description: "احفظ بيتين خلال 5 ثوانٍ واكتبهما في 5 جولات",  icon: Brain,             url: "/game" },
 ];
 
 const POETRY_LETTERS = ["ش", "ع", "ر"];

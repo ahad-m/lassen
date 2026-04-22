@@ -10,6 +10,7 @@ import HelpMeWrite from "./pages/HelpMeWrite";
 import JourneyThroughTime from "./pages/JourneyThroughTime";
 import TreasuresOfWords from "./pages/TreasuresOfWords";
 import PoetryInterpretation from "./pages/PoetryInterpretation";
+import PoetryMemoryGame from "./pages/PoetryMemoryGame";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/journey" element={<JourneyThroughTime />} />
             <Route path="/treasures" element={<TreasuresOfWords />} />
             <Route path="/interpret" element={<PoetryInterpretation />} />
+            <Route path="/game" element={<PoetryMemoryGame />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

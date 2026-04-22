@@ -82,6 +82,24 @@ class MoodResponse(BaseModel):
     category_guess:     Optional[str]      = None
 
 
+# ── لعبة حفظ الأبيات ───────────────────────────────────────────
+
+class MemoryGameRoundRequest(BaseModel):
+    exclude_poem_ids: list[str] = Field(default=[])
+
+
+class MemoryGameVerse(BaseModel):
+    verse_index: int
+    verse: str
+
+
+class MemoryGameRoundResponse(BaseModel):
+    success: bool = True
+    poem_id: str
+    poet_name: str
+    verses: list[MemoryGameVerse] = []
+    round_seconds: int = 5
+    message: Optional[str] = None
 # ── رحلة عبر الزمن ────────────────────────────────────────────
 
 class JourneyRequest(BaseModel):

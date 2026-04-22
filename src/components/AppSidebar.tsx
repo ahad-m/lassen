@@ -10,6 +10,7 @@ import {
   Clock,
   BookOpen,
   MessageSquareText,
+  Brain,
   Home,
   Trash2,
   Settings,
@@ -37,6 +38,7 @@ const navItems = [
   { title: "تفسير الأبيات", url: "/interpret", icon: MessageSquareText },
   { title: "ساعدني أكتب", url: "/write", icon: PenLine },
   { title: "كنوز الكلمات", url: "/treasures", icon: BookOpen },
+  { title: "لعبة الحفظ", url: "/game", icon: Brain },
 ];
 
 const pageNameMap: Record<string, string> = {
@@ -45,6 +47,7 @@ const pageNameMap: Record<string, string> = {
   journey: "رحلة عبر الزمن",
   treasures: "كنوز الكلمات",
   interpret: "تفسير الأبيات",
+  game: "لعبة الحفظ",
 };
 
 export function AppSidebar() {
