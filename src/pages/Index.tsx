@@ -237,8 +237,81 @@ const Index = () => {
         </motion.div>
       </section>
 
-      <footer className="py-8 px-6 text-center border-t border-brown-200/40">
-        <p className="font-display text-base text-brown-600/70">لَسِنْ ... حيث يلتقي الشعر بالتقنية ✦</p>
+      <footer className="py-12 px-6 border-t border-brown-200/40 relative">
+        <div className="max-w-4xl mx-auto space-y-8">
+
+          {/* قسم فريق العمل */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center space-y-5"
+          >
+            <div className="flex items-center justify-center gap-3">
+              <div className="h-px w-12 bg-brown-400/40" />
+              <h3 className="font-display text-xl text-brown-700">فريق عمل لَسِنْ</h3>
+              <div className="h-px w-12 bg-brown-400/40" />
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
+              {[
+                {
+                  name: "عهد العتيبي",
+                  url: "https://www.linkedin.com/in/ahad-alotaibi-b6a1542a9?utm_source=share_via&utm_content=profile&utm_medium=member_ios",
+                },
+                {
+                  name: "الاء منشي",
+                  url: "https://www.linkedin.com/in/alaa-monshi-05ab8723a?utm_source=share_via&utm_content=profile&utm_medium=member_ios",
+                },
+                {
+                  name: "رهف الشهراني",
+                  url: "https://www.linkedin.com/in/rahaf-mohammed-89b4a11b4?utm_source=share_via&utm_content=profile&utm_medium=member_ios",
+                },
+              ].map((member, i) => (
+                <motion.a
+                  key={member.name}
+                  href={member.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  initial={{ opacity: 0, y: 10 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: 0.1 * i, duration: 0.4 }}
+                  whileHover={{ y: -2 }}
+                  className="group inline-flex items-center gap-2 font-kufi text-sm text-brown-700 hover:text-brown-900 transition-colors"
+                >
+                  {/* أيقونة LinkedIn صغيرة */}
+                  <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-brown-200/60 border border-brown-300/40 group-hover:bg-brown-300/70 group-hover:border-brown-400/60 transition-all">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                      className="w-3.5 h-3.5 text-brown-700"
+                    >
+                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.063 2.063 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+                    </svg>
+                  </span>
+                  <span className="border-b border-transparent group-hover:border-brown-500/40 transition-colors">
+                    {member.name}
+                  </span>
+                </motion.a>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* فاصل زخرفي */}
+          <div className="flex items-center justify-center gap-3">
+            <div className="h-px w-20 bg-brown-300/40" />
+            <span className="text-brown-500/70 text-sm">✦</span>
+            <div className="h-px w-20 bg-brown-300/40" />
+          </div>
+
+          {/* النص الأصلي */}
+          <p className="font-display text-base text-brown-600/70 text-center">
+            لَسِنْ ... حيث يلتقي الشعر بالتقنية ✦
+          </p>
+        </div>
       </footer>
     </div>
   );
