@@ -80,7 +80,7 @@ async def explain_word(
             verses_list="\n".join(lines)
         )
     else:
-        verses_from_db_block = "[لم تُوجد أبيات في قاعدة البيانات — أضف من معرفتك وضع source: 'gpt']"
+        verses_from_db_block = "[لم تُوجد أبيات في مجموعة الأشعار — أضف من معرفتك وضع source: 'gpt']"
 
     verse_context_block = (
         VERSE_CONTEXT_TEMPLATE.format(verse=verse.strip())

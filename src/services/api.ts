@@ -30,7 +30,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 // ── كنوز الكلمات ──────────────────────────────────────────────
 
 export interface MeaningEntry  { title: string; explanation: string; source: "siwar" | "gpt" }
-export interface ExampleVerse  { verse: string; poet: string; source: "database" | "gpt" }
+export interface ExampleVerse  { verse: string; poet: string; source: "database" | "dataset" | "gpt" }
 
 export interface TreasuresResponse {
   status:          "ok" | "error";

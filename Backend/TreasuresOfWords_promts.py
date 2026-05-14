@@ -36,7 +36,7 @@ TREASURES_SYSTEM_PROMPT = """\
 
 === رابعاً: الأبيات ===
 
-- إذا زُوِّدت بأبيات من قاعدة البيانات → استخدمها وضع source: "database"
+- إذا زُوِّدت بأبيات من مجموعة أشعار (مرفقة أدناه) → استخدمها وضع source: "dataset"
 - إذا لم تُزوَّد → أضف أبياتاً لشعراء مشهورين وضع source: "gpt"
 
 === قواعد ===
@@ -64,7 +64,7 @@ TREASURES_SYSTEM_PROMPT = """\
   "poetic_usage": "كيف يستخدمها الشعراء",
   "symbolism": "ما ترمز إليه",
   "example_verses": [
-    {"verse": "البيت", "poet": "الشاعر", "source": "database"},
+    {"verse": "البيت", "poet": "الشاعر", "source": "dataset"},
     {"verse": "البيت", "poet": "الشاعر", "source": "gpt"}
   ],
   "simple_tip": "جملة واحدة تلخص الكلمة",
@@ -107,7 +107,7 @@ SIWAR_BLOCK_TEMPLATE = """\
 SIWAR_ROOT_LINE = "الجذر: {root}"
 
 VERSES_FROM_DB_TEMPLATE = """\
-[أبيات من قاعدة بياناتنا — ضع source: "database" لها]
+[أبيات من مجموعة أشعار (arbml/ashaar) — ضع source: "dataset" لها]
 {verses_list}
 """
 
