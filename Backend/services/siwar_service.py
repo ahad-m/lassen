@@ -1,6 +1,7 @@
 # =============================================================
 # services/siwar_service.py
 # معجم سوار — مع تطبيع التاء المربوطة والهاء
+# البحث عبر واجهة سوار العامة دون تقييد بنوع معجم محدد.
 # =============================================================
 
 import httpx
@@ -14,13 +15,9 @@ SIWAR_API_KEY  = os.getenv("SIWAR_API_KEY")
 SIWAR_BASE_URL = os.getenv("SIWAR_BASE_URL", "https://siwar.ksaa.gov.sa")
 TIMEOUT        = 10.0
 
-PREFERRED_LEXICONS = [
-    "معجم الرياض للغة العربية المعاصرة",
-    "القاموس المحيط",
-    "المعجم الوسيط",
-    "لسان العرب",
-    "تاج العروس",
-]
+# أقل طول لسطر معنى يُعتبر مفيداً (تجنّب الضجيج الفارغ)
+MIN_DEFINITION_LEN = 2
+SEARCH_LIMIT       = 30
 
 
 def _strip_tashkeel(text: str) -> str:
@@ -52,6 +49,7 @@ def _get_search_variants(word: str) -> list[str]:
     2. الكلمة الأصلية
     3. الكلمة بعد ة → ه (للعكس)
     4. بدون ال التعريف
+    5. توحيد همزة الألف في بداية الكلمة (أ/إ/آ → ا) إن وُجدت
     """
     base       = _strip_tashkeel(word)
     normalized = _normalize_ta_ha(base)
@@ -71,6 +69,11 @@ def _get_search_variants(word: str) -> list[str]:
         if v.startswith("ال") and len(v) > 4:
             variants.append(v[2:])
 
+    # همزة الألف على السطر الأول
+    for v in list(variants):
+        if v and v[0] in "أإآ":
+            variants.append("ا" + v[1:])
+
     # إزالة المكررات مع الحفاظ على الترتيب
     seen = set()
     unique = []
@@ -82,75 +85,123 @@ def _get_search_variants(word: str) -> list[str]:
     return unique
 
 
-def _parse_senses_response(data: list) -> dict:
-    if not isinstance(data, list) or not data:
+def _coerce_to_entry_list(payload: object) -> list:
+    """يحوّل جسم JSON سوار إلى قائمة مداخل (list أو dict يلفّ قائمة)."""
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        for key in ("content", "data", "results", "items", "records", "elements"):
+            v = payload.get(key)
+            if isinstance(v, list):
+                return v
+    return []
+
+
+def _lexicon_label(entry: dict) -> str:
+    for k in ("lexiconName", "dictionaryName", "lexicon", "source"):
+        v = entry.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return "معجم"
+
+
+def _sense_definition_text(sense: object) -> str:
+    """يستخرج نص التعريف سواء أكان sense نصاً أم كائناً (مثل /senses)."""
+    if isinstance(sense, str):
+        return sense.strip()
+    if not isinstance(sense, dict):
+        return str(sense).strip() if sense else ""
+
+    for key in ("definition", "text", "gloss", "meaning", "sense", "description"):
+        val = sense.get(key)
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+    # أي قيمة نصية قصيرة في القاموس
+    for val in sense.values():
+        if isinstance(val, str) and len(val.strip()) > MIN_DEFINITION_LEN:
+            return val.strip()
+    return ""
+
+
+def _parse_senses_response(payload: object) -> dict:
+    data = _coerce_to_entry_list(payload)
+    if not data:
         return {}
 
-    sorted_entries = sorted(
-        data,
-        key=lambda x: next(
-            (i for i, lex in enumerate(PREFERRED_LEXICONS)
-             if lex in x.get("lexiconName", "")),
-            len(PREFERRED_LEXICONS)
-        )
-    )
+    all_definitions: list[dict] = []
 
-    all_definitions = []
-
-    for entry in sorted_entries:
-        lexicon_name = entry.get("lexiconName", "")
-        senses       = entry.get("senses", [])
+    for entry in data:
+        if not isinstance(entry, dict):
+            continue
+        lexicon_name = _lexicon_label(entry)
+        senses = entry.get("senses") or []
+        if isinstance(senses, dict):
+            senses = [senses]
+        if not isinstance(senses, list):
+            continue
         for sense in senses:
-            if sense and len(sense.strip()) > 5:
+            defn = _sense_definition_text(sense)
+            if defn and len(defn) >= MIN_DEFINITION_LEN:
+                root_val = None
+                if isinstance(sense, dict):
+                    r = sense.get("root") or sense.get("lemma")
+                    if isinstance(r, str) and r.strip():
+                        root_val = r.strip()
                 all_definitions.append({
-                    "definition":  sense.strip(),
+                    "definition":  defn,
                     "source_dict": lexicon_name,
-                    "root":        None,
+                    "root":        root_val,
                 })
 
     if not all_definitions:
         return {}
+
+    # ترتيب ثابت باسم المعجم فقط (بدون تفضيل معجم معيّن على آخر)
+    all_definitions.sort(key=lambda x: x.get("source_dict") or "")
 
     combined_parts = []
     for i, d in enumerate(all_definitions[:6]):
         combined_parts.append(f"{i+1}. [{d['source_dict']}] {d['definition']}")
 
+    root = next((d["root"] for d in all_definitions if d.get("root")), None)
+
     return {
         "definition":      "\n".join(combined_parts),
         "all_definitions": all_definitions,
-        "root":            None,
+        "root":            root,
     }
 
 
-def _parse_search_response(data: list) -> dict:
-    if not isinstance(data, list) or not data:
+def _parse_search_response(payload: object) -> dict:
+    data = _coerce_to_entry_list(payload)
+    if not data:
         return {}
 
-    all_definitions = []
+    all_definitions: list[dict] = []
 
     for entry in data:
-        lexicon_name = entry.get("lexiconName", "")
-        root_raw     = entry.get("root", "")
-        senses       = entry.get("senses", [])
+        if not isinstance(entry, dict):
+            continue
+        lexicon_name = _lexicon_label(entry)
+        root_raw = entry.get("root", "")
+        senses = entry.get("senses") or []
+        if isinstance(senses, dict):
+            senses = [senses]
+        if not isinstance(senses, list):
+            continue
         for sense in senses:
-            defn = sense.get("definition", "") if isinstance(sense, dict) else str(sense)
-            if defn and len(defn.strip()) > 5:
+            defn = _sense_definition_text(sense)
+            if defn and len(defn) >= MIN_DEFINITION_LEN:
                 all_definitions.append({
-                    "definition":  defn.strip(),
+                    "definition":  defn,
                     "source_dict": lexicon_name,
-                    "root":        root_raw or None,
+                    "root":        (root_raw or "").strip() or None,
                 })
 
     if not all_definitions:
         return {}
 
-    all_definitions.sort(
-        key=lambda x: next(
-            (i for i, lex in enumerate(PREFERRED_LEXICONS)
-             if lex in x.get("source_dict", "")),
-            len(PREFERRED_LEXICONS)
-        )
-    )
+    all_definitions.sort(key=lambda x: x.get("source_dict") or "")
 
     combined_parts = []
     for i, d in enumerate(all_definitions[:6]):
@@ -166,13 +217,15 @@ def _parse_search_response(data: list) -> dict:
 
 
 async def _search_siwar_single(client: httpx.AsyncClient, query: str, headers: dict) -> dict:
-    """يبحث بكلمة واحدة ويرجع النتيجة."""
+    """يبحث بكلمة واحدة ويرجع النتيجة (بدون فلترة حسب نوع المعجم)."""
+    params = {"query": query, "limit": SEARCH_LIMIT}
+
     # المحاولة 1: senses
     try:
         resp = await client.get(
             f"{SIWAR_BASE_URL}/api/v1/external/public/senses",
             headers=headers,
-            params={"query": query, "limit": 10},
+            params=params,
         )
         if resp.status_code == 200:
             result = _parse_senses_response(resp.json())
@@ -186,7 +239,7 @@ async def _search_siwar_single(client: httpx.AsyncClient, query: str, headers: d
         resp2 = await client.get(
             f"{SIWAR_BASE_URL}/api/v1/external/public/search",
             headers=headers,
-            params={"query": query, "limit": 10},
+            params=params,
         )
         if resp2.status_code == 200:
             result2 = _parse_search_response(resp2.json())
@@ -201,7 +254,7 @@ async def _search_siwar_single(client: httpx.AsyncClient, query: str, headers: d
 async def get_siwar_definition(word: str) -> dict:
     """
     يبحث عن الكلمة في معجم سوار.
-    يجرب أشكالاً مختلفة للكلمة (تاء مربوطة / هاء / بدون ال).
+    يجرب أشكالاً مختلفة للكلمة (تاء مربوطة / هاء / بدون ال / همزة الألف).
     """
     NOT_FOUND = {
         "found":           False,
@@ -230,5 +283,3 @@ async def get_siwar_definition(word: str) -> dict:
 
     print(f"ℹ️ سوار ما وجد '{word}' — GPT يعتمد على معرفته")
     return NOT_FOUND
-
-
