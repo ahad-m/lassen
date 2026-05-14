@@ -22,15 +22,17 @@ from typing import Any
 try:
     from .supabase_client import get_supabase_client
 except ImportError:
-    from supabase_client import get_supabase_client
+    try:
+        from supabase_client import get_supabase_client
+    except ModuleNotFoundError:
+        from Backend.services.supabase_client import get_supabase_client
 
-# استيراد خدمة فلترة المحتوى
 try:
     from .content_filter_service import filter_appropriate_rounds
 except ImportError:
     try:
         from content_filter_service import filter_appropriate_rounds
-    except ImportError:
+    except (ImportError, ModuleNotFoundError):
         # في حالة عدم توفر الخدمة، نتجاوز الفلترة بأمان
         def filter_appropriate_rounds(
             rounds_pool: list[dict[str, Any]],

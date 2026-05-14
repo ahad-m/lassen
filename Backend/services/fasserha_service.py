@@ -17,7 +17,10 @@ from openai import OpenAI
 from typing import Generator
 import time
 
-from Fasserha_prompts import FASSERHA_SYSTEM_PROMPT, build_user_prompt
+try:
+    from Fasserha_prompts import FASSERHA_SYSTEM_PROMPT, build_user_prompt
+except ModuleNotFoundError:
+    from Backend.Fasserha_prompts import FASSERHA_SYSTEM_PROMPT, build_user_prompt
 
 load_dotenv()
 

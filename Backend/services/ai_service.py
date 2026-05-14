@@ -7,29 +7,54 @@ import os
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 
-from TreasuresOfWords_promts import (
-    TREASURES_SYSTEM_PROMPT,
-    TREASURES_USER_PROMPT,
-    SIWAR_BLOCK_TEMPLATE,
-    SIWAR_ROOT_LINE,
-    VERSES_FROM_DB_TEMPLATE,
-    VERSE_LINE_TEMPLATE,
-    VERSE_CONTEXT_TEMPLATE,
-    FOLLOWUP_BLOCK_TEMPLATE,
-)
-from MoodOfTheDay_promts import (
-    MOOD_SYSTEM_PROMPT,
-    MOOD_USER_PROMPT,
-    CONTEXT_BLOCK_TEMPLATE,
-    POEMS_BLOCK_TEMPLATE,
-    POEM_LINE_TEMPLATE,
-    MOOD_TO_CATEGORY,
-    AVAILABLE_CATEGORIES,
-)
-from JourneyThroughTime_prompts import (
-    JOURNEY_SUMMARY_SYSTEM_PROMPT,
-    JOURNEY_SUMMARY_USER_PROMPT,
-)
+try:
+    from TreasuresOfWords_promts import (
+        TREASURES_SYSTEM_PROMPT,
+        TREASURES_USER_PROMPT,
+        SIWAR_BLOCK_TEMPLATE,
+        SIWAR_ROOT_LINE,
+        VERSES_FROM_DB_TEMPLATE,
+        VERSE_LINE_TEMPLATE,
+        VERSE_CONTEXT_TEMPLATE,
+        FOLLOWUP_BLOCK_TEMPLATE,
+    )
+    from MoodOfTheDay_promts import (
+        MOOD_SYSTEM_PROMPT,
+        MOOD_USER_PROMPT,
+        CONTEXT_BLOCK_TEMPLATE,
+        POEMS_BLOCK_TEMPLATE,
+        POEM_LINE_TEMPLATE,
+        MOOD_TO_CATEGORY,
+        AVAILABLE_CATEGORIES,
+    )
+    from JourneyThroughTime_prompts import (
+        JOURNEY_SUMMARY_SYSTEM_PROMPT,
+        JOURNEY_SUMMARY_USER_PROMPT,
+    )
+except ModuleNotFoundError:
+    from Backend.TreasuresOfWords_promts import (
+        TREASURES_SYSTEM_PROMPT,
+        TREASURES_USER_PROMPT,
+        SIWAR_BLOCK_TEMPLATE,
+        SIWAR_ROOT_LINE,
+        VERSES_FROM_DB_TEMPLATE,
+        VERSE_LINE_TEMPLATE,
+        VERSE_CONTEXT_TEMPLATE,
+        FOLLOWUP_BLOCK_TEMPLATE,
+    )
+    from Backend.MoodOfTheDay_promts import (
+        MOOD_SYSTEM_PROMPT,
+        MOOD_USER_PROMPT,
+        CONTEXT_BLOCK_TEMPLATE,
+        POEMS_BLOCK_TEMPLATE,
+        POEM_LINE_TEMPLATE,
+        MOOD_TO_CATEGORY,
+        AVAILABLE_CATEGORIES,
+    )
+    from Backend.JourneyThroughTime_prompts import (
+        JOURNEY_SUMMARY_SYSTEM_PROMPT,
+        JOURNEY_SUMMARY_USER_PROMPT,
+    )
 
 load_dotenv()
 

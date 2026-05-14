@@ -6,11 +6,17 @@ from __future__ import annotations
 
 import random
 
-from MoodOfTheDay_promts import MOOD_TO_CATEGORY, AVAILABLE_CATEGORIES
+try:
+    from MoodOfTheDay_promts import MOOD_TO_CATEGORY, AVAILABLE_CATEGORIES
+except ModuleNotFoundError:
+    from Backend.MoodOfTheDay_promts import MOOD_TO_CATEGORY, AVAILABLE_CATEGORIES
 try:
     from .supabase_client import get_supabase_client
 except ImportError:
-    from supabase_client import get_supabase_client
+    try:
+        from supabase_client import get_supabase_client
+    except ModuleNotFoundError:
+        from Backend.services.supabase_client import get_supabase_client
 
 TABLE_NAME = "poetry_verses"
 MAX_ROWS_PER_THEME = 600

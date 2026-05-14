@@ -14,11 +14,12 @@ import re
 from typing import Any
 
 try:
-    # عند التشغيل كحزمة: services.verse_searcher
     from .supabase_client import get_supabase_client
 except ImportError:
-    # fallback للتشغيل المباشر في بيئات التطوير السريعة
-    from supabase_client import get_supabase_client
+    try:
+        from supabase_client import get_supabase_client
+    except ModuleNotFoundError:
+        from Backend.services.supabase_client import get_supabase_client
 
 TABLE_NAME = "poetry_verses"
 DEFAULT_WORD_MAX_RESULTS = 6
