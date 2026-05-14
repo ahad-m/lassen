@@ -15,11 +15,20 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
-from JourneyThroughTime_prompts import (
-    JOURNEY_SUMMARY_SYSTEM_PROMPT,
-    JOURNEY_SUMMARY_USER_PROMPT,
-)
-from services.supabase_client import get_supabase_client
+try:
+    from JourneyThroughTime_prompts import (
+        JOURNEY_SUMMARY_SYSTEM_PROMPT,
+        JOURNEY_SUMMARY_USER_PROMPT,
+    )
+except ModuleNotFoundError:
+    from Backend.JourneyThroughTime_prompts import (
+        JOURNEY_SUMMARY_SYSTEM_PROMPT,
+        JOURNEY_SUMMARY_USER_PROMPT,
+    )
+try:
+    from services.supabase_client import get_supabase_client
+except ModuleNotFoundError:
+    from Backend.services.supabase_client import get_supabase_client
 
 load_dotenv()
 

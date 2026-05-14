@@ -13,26 +13,31 @@ import json
 from fastapi.responses import StreamingResponse
  
 
-# imports المشتركة
-from schemas import (
-    TreasuresRequest, TreasuresResponse, SiwarInfo,
-    MeaningEntry, ExampleVerse,
-    MoodRequest, MoodResponse, PoemEntry,
-    JourneyRequest, JourneyResponse, JourneyEraPoem, JourneySummary,
-    JourneyTTSRequest, JourneyTTSResponse,
-    InterpretRequest, InterpretResponse,
-    WriteGenerateRequest, WriteGenerateResponse,
-    WriteCompleteRequest, WriteCompleteResponse,
-    MemoryGameRoundRequest, MemoryGameRoundResponse, MemoryGameVerse,
-)
-
-# دعم التشغيل لثلاث هيكليات:
-# 1) Backend/services/*
-# 2) Backend/services/* مع تشغيل من جذر المشروع
-# 3) ملفات مسطحة في نفس المجلد (بيئة التطوير السريعة)
-# ─────────────────────────────────────────────────────────────
-# استبدل قسم الـ try/except للـ imports بهذا (تنظيف التكرار فقط)
-# ─────────────────────────────────────────────────────────────
+# imports المشتركة — تدعم التشغيل من Backend/ أو من جذر المشروع
+try:
+    from schemas import (
+        TreasuresRequest, TreasuresResponse, SiwarInfo,
+        MeaningEntry, ExampleVerse,
+        MoodRequest, MoodResponse, PoemEntry,
+        JourneyRequest, JourneyResponse, JourneyEraPoem, JourneySummary,
+        JourneyTTSRequest, JourneyTTSResponse,
+        InterpretRequest, InterpretResponse,
+        WriteGenerateRequest, WriteGenerateResponse,
+        WriteCompleteRequest, WriteCompleteResponse,
+        MemoryGameRoundRequest, MemoryGameRoundResponse, MemoryGameVerse,
+    )
+except ModuleNotFoundError:
+    from Backend.schemas import (
+        TreasuresRequest, TreasuresResponse, SiwarInfo,
+        MeaningEntry, ExampleVerse,
+        MoodRequest, MoodResponse, PoemEntry,
+        JourneyRequest, JourneyResponse, JourneyEraPoem, JourneySummary,
+        JourneyTTSRequest, JourneyTTSResponse,
+        InterpretRequest, InterpretResponse,
+        WriteGenerateRequest, WriteGenerateResponse,
+        WriteCompleteRequest, WriteCompleteResponse,
+        MemoryGameRoundRequest, MemoryGameRoundResponse, MemoryGameVerse,
+    )
 
 try:
     from services.siwar_service import get_siwar_definition
@@ -45,26 +50,15 @@ try:
     from services.help_me_write_service import generate_poetry_response, complete_poem_response
     from services.poetry_game_service import get_poetry_game_round
 except ModuleNotFoundError:
-    try:
-        from Backend.services.siwar_service import get_siwar_definition
-        from Backend.services.ai_service import explain_word, get_mood_response
-        from Backend.services.verse_searcher import search_verses_for_word
-        from Backend.services.poetry_retriever import get_poems_for_mood, get_db_stats
-        from Backend.services.journey_service import build_time_journey
-        from Backend.services.tts_service import synthesize_journey_speech
-        from Backend.services.fasserha_service import fasserha_api_response, fasserha_stream
-        from Backend.services.help_me_write_service import generate_poetry_response, complete_poem_response
-        from Backend.services.poetry_game_service import get_poetry_game_round
-    except ModuleNotFoundError:
-        from services.siwar_service import get_siwar_definition
-        from services.ai_service import explain_word, get_mood_response
-        from services.verse_searcher import search_verses_for_word
-        from services.poetry_retriever import get_poems_for_mood, get_db_stats
-        from services.journey_service import build_time_journey
-        from services.tts_service import synthesize_journey_speech
-        from services.fasserha_service import fasserha_api_response, fasserha_stream
-        from services.help_me_write_service import generate_poetry_response, complete_poem_response
-        from services.poetry_game_service import get_poetry_game_round
+    from Backend.services.siwar_service import get_siwar_definition
+    from Backend.services.ai_service import explain_word, get_mood_response
+    from Backend.services.verse_searcher import search_verses_for_word
+    from Backend.services.poetry_retriever import get_poems_for_mood, get_db_stats
+    from Backend.services.journey_service import build_time_journey
+    from Backend.services.tts_service import synthesize_journey_speech
+    from Backend.services.fasserha_service import fasserha_api_response, fasserha_stream
+    from Backend.services.help_me_write_service import generate_poetry_response, complete_poem_response
+    from Backend.services.poetry_game_service import get_poetry_game_round
         
 load_dotenv()
 

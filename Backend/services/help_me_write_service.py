@@ -18,12 +18,20 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from supabase import Client, create_client
 
-from HelpMeWrite_prompts import (
-    HELP_WRITE_VALIDATE_SYSTEM_PROMPT,
-    HELP_WRITE_VALIDATE_USER_PROMPT,
-    HELP_WRITE_GENERATE_SYSTEM_PROMPT,
-    HELP_WRITE_GENERATE_USER_PROMPT,
-)
+try:
+    from HelpMeWrite_prompts import (
+        HELP_WRITE_VALIDATE_SYSTEM_PROMPT,
+        HELP_WRITE_VALIDATE_USER_PROMPT,
+        HELP_WRITE_GENERATE_SYSTEM_PROMPT,
+        HELP_WRITE_GENERATE_USER_PROMPT,
+    )
+except ModuleNotFoundError:
+    from Backend.HelpMeWrite_prompts import (
+        HELP_WRITE_VALIDATE_SYSTEM_PROMPT,
+        HELP_WRITE_VALIDATE_USER_PROMPT,
+        HELP_WRITE_GENERATE_SYSTEM_PROMPT,
+        HELP_WRITE_GENERATE_USER_PROMPT,
+    )
 
 load_dotenv()
 

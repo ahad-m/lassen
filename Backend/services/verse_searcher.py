@@ -14,16 +14,17 @@ import re
 from typing import Any
 
 try:
-    # عند التشغيل كحزمة: services.verse_searcher
     from .supabase_client import get_supabase_client
 except ImportError:
-    # fallback للتشغيل المباشر في بيئات التطوير السريعة
-    from supabase_client import get_supabase_client
+    try:
+        from supabase_client import get_supabase_client
+    except ModuleNotFoundError:
+        from Backend.services.supabase_client import get_supabase_client
 
 TABLE_NAME = "poetry_verses"
 DEFAULT_WORD_MAX_RESULTS = 6
 MAX_MATCH_POOL = 50
-PER_VARIANT_LIMIT = 160
+PER_VARIANT_LIMIT = 40
 
 # تصنيف العصور — للحفاظ على التنويع
 ERA_GROUPS = {
@@ -92,14 +93,18 @@ def _detect_era(row: dict[str, Any]) -> str:
     return "قديم"
 
 
-def _fetch_rows_for_variant(variant: str, limit: int) -> list[dict[str, Any]]:
-    if len(variant.strip()) < 3:
+def _fetch_rows_for_variants(variants: list[str], limit: int) -> list[dict[str, Any]]:
+    """Fetch rows matching any of the given variants in a single query."""
+    usable = [v for v in variants if len(v.strip()) >= 3]
+    if not usable:
         return []
+
+    or_filter = ",".join(f"verse.ilike.%{v}%" for v in usable)
     response = (
         get_supabase_client()
         .table(TABLE_NAME)
         .select("id,verse,poet_name,poet_era,poem_theme")
-        .ilike("verse", f"%{variant}%")
+        .or_(or_filter)
         .limit(max(1, int(limit)))
         .execute()
     )
@@ -116,35 +121,30 @@ def search_verses_for_word(word: str, max_results: int = DEFAULT_WORD_MAX_RESULT
     all_matched: list[dict] = []
     seen_ids: set[str] = set()
 
-    for variant in word_variants:
-        if len(variant) < 3:
+    rows = _fetch_rows_for_variants(word_variants, limit=PER_VARIANT_LIMIT)
+    for row in rows:
+        verse = str(row.get("verse") or "").strip()
+        if not verse:
             continue
-        rows = _fetch_rows_for_variant(variant, limit=PER_VARIANT_LIMIT)
-        for row in rows:
-            verse = str(row.get("verse") or "").strip()
-            if not verse:
-                continue
-            row_id = str(row.get("id") or verse)
-            if row_id in seen_ids:
-                continue
+        row_id = str(row.get("id") or verse)
+        if row_id in seen_ids:
+            continue
 
-            verse_normalized = _normalize(verse)
-            if not _verse_contains_word(verse_normalized, word_variants):
-                continue
+        verse_normalized = _normalize(verse)
+        if not _verse_contains_word(verse_normalized, word_variants):
+            continue
 
-            seen_ids.add(row_id)
-            era = _detect_era(row)
-            entry = {
-                "verse": verse,
-                "poet": str(row.get("poet_name") or "مجهول").strip() or "مجهول",
-                "source": "database",
-                "era": era,
-            }
-            matched_by_era[era].append(entry)
-            all_matched.append(entry)
+        seen_ids.add(row_id)
+        era = _detect_era(row)
+        entry = {
+            "verse": verse,
+            "poet": str(row.get("poet_name") or "مجهول").strip() or "مجهول",
+            "source": "database",
+            "era": era,
+        }
+        matched_by_era[era].append(entry)
+        all_matched.append(entry)
 
-            if len(all_matched) >= MAX_MATCH_POOL:
-                break
         if len(all_matched) >= MAX_MATCH_POOL:
             break
 
