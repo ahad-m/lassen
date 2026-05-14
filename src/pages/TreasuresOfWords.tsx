@@ -36,7 +36,7 @@ const ExampleVerseCard = ({
   verse,
   index,
 }: {
-  verse: { verse: string; poet: string; source: "database" | "gpt" };
+  verse: { verse: string; poet: string; source: "database" | "dataset" | "gpt" };
   index: number;
 }) => (
   <motion.div
@@ -52,9 +52,9 @@ const ExampleVerseCard = ({
       {verse.poet && verse.poet !== "مجهول" && (
         <p className="font-ui text-[10px] text-brown-500/70">— {verse.poet}</p>
       )}
-      {verse.source === "database" && (
+      {(verse.source === "database" || verse.source === "dataset") && (
         <span className="text-[9px] text-emerald-500/80 border border-emerald-400/20 rounded-full px-1.5 py-0.5 font-ui mr-auto">
-          من قاعدة البيانات
+          {verse.source === "dataset" ? "من مجموعة أشعار" : "من قاعدة البيانات"}
         </span>
       )}
     </div>

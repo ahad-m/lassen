@@ -1,6 +1,6 @@
 """
 services/verse_searcher.py
-بحث أبيات "كنوز الكلمات" من Supabase مع الحفاظ على منطق الملف السابق:
+بحث أبيات "كنوز الكلمات" من داتاست HuggingFace ‎arbml/ashaar‎ مع الحفاظ على منطق الملف السابق:
 - تطبيع عربي
 - توليد مشتقات للكلمة
 - مطابقة حقيقية
@@ -13,17 +13,9 @@ import random
 import re
 from typing import Any
 
-try:
-    # عند التشغيل كحزمة: services.verse_searcher
-    from .supabase_client import get_supabase_client
-except ImportError:
-    # fallback للتشغيل المباشر في بيئات التطوير السريعة
-    from supabase_client import get_supabase_client
-
-TABLE_NAME = "poetry_verses"
+ASHAAR_DATASET = "arbml/ashaar"
 DEFAULT_WORD_MAX_RESULTS = 6
 MAX_MATCH_POOL = 50
-PER_VARIANT_LIMIT = 160
 
 # تصنيف العصور — للحفاظ على التنويع
 ERA_GROUPS = {
@@ -31,6 +23,18 @@ ERA_GROUPS = {
     "وسيط": ["أندلسي", "مملوكي", "أيوبي", "وسيط"],
     "حديث": ["حديث", "معاصر", "نهضة", "عصر النهضة"],
 }
+
+_ashaar_stream: Any | None = None
+
+
+def _get_ashaar_stream():
+    """تحميل كسول لدفق الداتاست (يُعاد استخدامه بين الطلبات)."""
+    global _ashaar_stream
+    if _ashaar_stream is None:
+        from datasets import load_dataset
+
+        _ashaar_stream = load_dataset(ASHAAR_DATASET, split="train", streaming=True)
+    return _ashaar_stream
 
 
 def _normalize(text: str) -> str:
@@ -92,20 +96,6 @@ def _detect_era(row: dict[str, Any]) -> str:
     return "قديم"
 
 
-def _fetch_rows_for_variant(variant: str, limit: int) -> list[dict[str, Any]]:
-    if len(variant.strip()) < 3:
-        return []
-    response = (
-        get_supabase_client()
-        .table(TABLE_NAME)
-        .select("id,verse,poet_name,poet_era,poem_theme")
-        .ilike("verse", f"%{variant}%")
-        .limit(max(1, int(limit)))
-        .execute()
-    )
-    return response.data or []
-
-
 def search_verses_for_word(word: str, max_results: int = DEFAULT_WORD_MAX_RESULTS) -> list[dict]:
     query = str(word or "").strip()
     if not query:
@@ -116,37 +106,48 @@ def search_verses_for_word(word: str, max_results: int = DEFAULT_WORD_MAX_RESULT
     all_matched: list[dict] = []
     seen_ids: set[str] = set()
 
-    for variant in word_variants:
-        if len(variant) < 3:
-            continue
-        rows = _fetch_rows_for_variant(variant, limit=PER_VARIANT_LIMIT)
-        for row in rows:
-            verse = str(row.get("verse") or "").strip()
-            if not verse:
-                continue
-            row_id = str(row.get("id") or verse)
-            if row_id in seen_ids:
-                continue
+    try:
+        ds = _get_ashaar_stream()
+    except Exception:
+        return []
 
-            verse_normalized = _normalize(verse)
-            if not _verse_contains_word(verse_normalized, word_variants):
-                continue
-
-            seen_ids.add(row_id)
-            era = _detect_era(row)
-            entry = {
-                "verse": verse,
-                "poet": str(row.get("poet_name") or "مجهول").strip() or "مجهول",
-                "source": "database",
-                "era": era,
+    try:
+        for poem_index, hf_row in enumerate(ds):
+            syn_row = {
+                "poet_name": str(hf_row.get("poet name") or ""),
+                "poet_era": str(hf_row.get("poet era") or ""),
+                "poem_theme": str(hf_row.get("poem theme") or ""),
             }
-            matched_by_era[era].append(entry)
-            all_matched.append(entry)
-
+            verses_raw = hf_row.get("poem verses") or []
+            if isinstance(verses_raw, str):
+                verses_raw = [verses_raw]
+            for vidx, verse in enumerate(verses_raw):
+                verse = str(verse or "").strip()
+                if not verse:
+                    continue
+                verse_normalized = _normalize(verse)
+                if not _verse_contains_word(verse_normalized, word_variants):
+                    continue
+                row_id = f"{poem_index}_{vidx}"
+                if row_id in seen_ids:
+                    continue
+                seen_ids.add(row_id)
+                era = _detect_era(syn_row)
+                entry = {
+                    "verse": verse,
+                    "poet": str(syn_row["poet_name"] or "مجهول").strip() or "مجهول",
+                    "source": "dataset",
+                    "era": era,
+                }
+                matched_by_era[era].append(entry)
+                all_matched.append(entry)
+                if len(all_matched) >= MAX_MATCH_POOL:
+                    break
             if len(all_matched) >= MAX_MATCH_POOL:
                 break
-        if len(all_matched) >= MAX_MATCH_POOL:
-            break
+    except Exception:
+        if not all_matched:
+            return []
 
     if not all_matched:
         return []
